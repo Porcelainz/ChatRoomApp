@@ -64,20 +64,28 @@ namespace Test.Client
 
 		private async Task ReceiveMessagesAsync()
 		{
-			var buffer = new byte[1024];
 			try
 			{
 				while (true)
 				{
-					var bytesRead = await _stream.ReadAsync(buffer, 0, buffer.Length);
-					if (bytesRead == 0) break; // Server disconnected
-					var message = Encoding.UTF8.GetString(buffer, 0, bytesRead);
+					// 讀取消息長度
+					var lengthBuffer = new byte[4];
+					int bytesRead = await _stream.ReadAsync(lengthBuffer, 0, lengthBuffer.Length);
+					if (bytesRead == 0) break; // 連接已關閉
+					var messageLength = BitConverter.ToInt32(lengthBuffer, 0);
+
+					// 根據消息長度讀取消息
+					var messageBuffer = new byte[messageLength];
+					bytesRead = await _stream.ReadAsync(messageBuffer, 0, messageLength);
+					if (bytesRead == 0) break; // 連接已關閉
+					var message = Encoding.UTF8.GetString(messageBuffer);
+
 					Console.WriteLine(message);
 				}
 			}
 			catch (Exception ex)
 			{
-				Console.WriteLine("Exception: " + ex.Message);
+				Console.WriteLine($"Exception: {ex.Message}");
 			}
 		}
 
@@ -88,9 +96,13 @@ namespace Test.Client
 				while (true)
 				{
 					var message = Console.ReadLine();
-					if (message == null) break; // User entered EOF
-					var buffer = Encoding.UTF8.GetBytes(message);
-					await _stream.WriteAsync(buffer, 0, buffer.Length);
+					if (message == null) break;
+					var messageBuffer = Encoding.UTF8.GetBytes(message);
+					var lengthBuffer = BitConverter.GetBytes(messageBuffer.Length);
+
+					// 先發送消息長度，再發送消息內容
+					await _stream.WriteAsync(lengthBuffer, 0, lengthBuffer.Length);
+					await _stream.WriteAsync(messageBuffer, 0, messageBuffer.Length);
 				}
 			}
 			catch (Exception ex)

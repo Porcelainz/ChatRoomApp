@@ -52,13 +52,11 @@ namespace Test.Server
 
 		private async Task HandleClientAsync(TcpClient client)
 		{
-			var buffer = new byte[1024];
 			var stream = client.GetStream();
 			string username = null;
 
 			try
 			{
-				// 進行登入驗證
 				username = await AuthenticateClientAsync(client);
 				if (username == null)
 				{
@@ -66,15 +64,20 @@ namespace Test.Server
 					client.Close();
 					return;
 				}
-				//username = loginSuccess.username;
 				await SendRecentMessagesAsync(client);
 				await BroadcastMessageAsync($"{username} joined the chat.");
 				while (true)
 				{
-					var bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length);
-					if (bytesRead == 0) break; // Client disconnected
-					var message = Encoding.UTF8.GetString(buffer, 0, bytesRead);
-					string formattedMessage = $"{username}: {message}";	
+					// 讀取消息長度
+					var lengthBuffer = new byte[4];
+					if (await stream.ReadAsync(lengthBuffer, 0, lengthBuffer.Length) == 0) break;
+					var messageLength = BitConverter.ToInt32(lengthBuffer, 0);
+
+					// 根據消息長度讀取消息
+					var messageBuffer = new byte[messageLength];
+					await stream.ReadAsync(messageBuffer, 0, messageLength);
+					var message = Encoding.UTF8.GetString(messageBuffer);
+					string formattedMessage = $"{username}: {message}";
 					Console.WriteLine(formattedMessage);
 					await StoreMessageAsync(formattedMessage);
 					await BroadcastMessageAsync(formattedMessage);
@@ -89,9 +92,7 @@ namespace Test.Server
 				_clients.TryRemove(client, out _);
 				client.Close();
 				Console.WriteLine($"{username} disconnected.");
-				await BroadcastMessageAsync($"{username} left the chat.");
 			}
-
 		}
 
 
@@ -124,8 +125,13 @@ namespace Test.Server
 				return null;
 			}
 		}
-		private async Task StoreMessageAsync(string fullMessage)
+		private async Task StoreMessageAsync(string message)
 		{
+			var messageBytes = Encoding.UTF8.GetBytes(message);
+			var lengthBytes = BitConverter.GetBytes(messageBytes.Length); // 注意這裡是messageBytes的長度
+			var fullMessage = new byte[lengthBytes.Length + messageBytes.Length];
+			lengthBytes.CopyTo(fullMessage, 0);
+			messageBytes.CopyTo(fullMessage, lengthBytes.Length);
 			await _db.ListRightPushAsync("chatroom:messages", fullMessage);
 		}
 
@@ -145,17 +151,22 @@ namespace Test.Server
 
 		private async Task BroadcastMessageAsync(string message)
 		{
-			var buffer = Encoding.UTF8.GetBytes(message);
+			var messageBytes = Encoding.UTF8.GetBytes(message);
+			var lengthBytes = BitConverter.GetBytes(messageBytes.Length); // 獲取消息長度的字節表示
+			var fullMessage = new byte[lengthBytes.Length + messageBytes.Length];
+			lengthBytes.CopyTo(fullMessage, 0); // 將長度前綴複製到完整消息的開頭
+			messageBytes.CopyTo(fullMessage, lengthBytes.Length); // 將消息內容複製到長度後面
+
 			foreach (var client in _clients.Keys)
 			{
 				try
 				{
 					var stream = client.GetStream();
-					await stream.WriteAsync(buffer, 0, buffer.Length);
+					await stream.WriteAsync(fullMessage, 0, fullMessage.Length); // 發送包含長度前綴的完整消息
 				}
 				catch
 				{
-					// Ignore write failures (client might have disconnected)
+					// 忽略寫入失敗（客戶端可能已斷開連接）
 				}
 			}
 		}
