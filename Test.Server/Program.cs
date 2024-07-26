@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -14,8 +15,12 @@ namespace Test.Server
 	{
 		static async Task Main(string[] args)
 		{
-			var server = new ChatServer("127.0.0.1", 9000);
+			int port = Int32.Parse(args[0]);
+			var server = new ChatServer("127.0.0.1", port);
 			await server.StartAsync();
+			//int port2 = Int32.Parse(args[1]);
+			//var server2 = new ChatServer("127.0.0.1", 9001);
+			//await server2.StartAsync();
 		}
 	}
 
@@ -26,6 +31,8 @@ namespace Test.Server
 		private Dictionary<string, string> _users;
 		private static ConnectionMultiplexer _redis;
 		private static IDatabase _db;
+		private ISubscriber _sub;
+		private int _port;
 
 		public ChatServer(string ipAddress, int port)
 		{
@@ -34,13 +41,25 @@ namespace Test.Server
 			_users = UserHelper.InitUser();
 			_redis = ConnectionMultiplexer.Connect("localhost:6379,password=wtredis");
 			_db = _redis.GetDatabase();
+			_sub = _redis.GetSubscriber();
+			_port = port;
 
 		}
 
 		public async Task StartAsync()
 		{
 			_listener.Start();
-			Console.WriteLine("Server started.");
+			Console.WriteLine($"Server started on port {_port}.");
+
+			await _sub.SubscribeAsync("chatroom:messages", (channel, message) =>
+			{
+				
+				var msg = (string)message;
+				//Console.WriteLine("Received message: " + msg);
+				BroadcastMessageAsync(msg).Wait();
+
+			});
+
 
 			while (true)
 			{
@@ -54,6 +73,7 @@ namespace Test.Server
 		{
 			var stream = client.GetStream();
 			string username = null;
+			byte[] buffer = new byte[1024];
 
 			try
 			{
@@ -69,18 +89,31 @@ namespace Test.Server
 				while (true)
 				{
 					// 讀取消息長度
-					var lengthBuffer = new byte[4];
-					if (await stream.ReadAsync(lengthBuffer, 0, lengthBuffer.Length) == 0) break;
-					var messageLength = BitConverter.ToInt32(lengthBuffer, 0);
+					int bytesRead = await stream.ReadAsync(buffer, 0, 4);
+					if (bytesRead == 0) break;
+					var messageLength = BitConverter.ToInt32(buffer, 0);
 
-					// 根據消息長度讀取消息
-					var messageBuffer = new byte[messageLength];
-					await stream.ReadAsync(messageBuffer, 0, messageLength);
-					var message = Encoding.UTF8.GetString(messageBuffer);
-					string formattedMessage = $"{username}: {message}";
-					Console.WriteLine(formattedMessage);
-					await StoreMessageAsync(formattedMessage);
-					await BroadcastMessageAsync(formattedMessage);
+					// 使用 MemoryStream 來構建完整消息
+					using (var memoryStream = new MemoryStream())
+					{
+						int remainingBytes = messageLength;
+						while (remainingBytes > 0)
+						{
+							int bytesToRead = Math.Min(remainingBytes, buffer.Length);
+							bytesRead = await stream.ReadAsync(buffer, 0, bytesToRead);
+							if (bytesRead == 0) break;
+							await memoryStream.WriteAsync(buffer, 0, bytesRead);
+							remainingBytes -= bytesRead;
+						}
+
+						var messageBytes = memoryStream.ToArray();
+						var message = Encoding.UTF8.GetString(messageBytes);
+						string formattedMessage = $"{username}: {message}";
+						Console.WriteLine(formattedMessage);
+						// 發布消息到 Redis
+						await StoreMessageAsync(formattedMessage);
+						await _sub.PublishAsync("chatroom:messages", formattedMessage);
+					}
 				}
 			}
 			catch (Exception ex)
@@ -127,42 +160,41 @@ namespace Test.Server
 		}
 		private async Task StoreMessageAsync(string message)
 		{
-			var messageBytes = Encoding.UTF8.GetBytes(message);
-			var lengthBytes = BitConverter.GetBytes(messageBytes.Length); // 注意這裡是messageBytes的長度
-			var fullMessage = new byte[lengthBytes.Length + messageBytes.Length];
-			lengthBytes.CopyTo(fullMessage, 0);
-			messageBytes.CopyTo(fullMessage, lengthBytes.Length);
-			await _db.ListRightPushAsync("chatroom:messages", fullMessage);
+			//var messageBytes = Encoding.UTF8.GetBytes(message);
+			//var lengthBytes = BitConverter.GetBytes(messageBytes.Length); // 注意這裡是messageBytes的長度
+			//var fullMessage = new byte[lengthBytes.Length + messageBytes.Length];
+			//lengthBytes.CopyTo(fullMessage, 0);
+			//messageBytes.CopyTo(fullMessage, lengthBytes.Length);
+			await _db.ListRightPushAsync("chatroom:messages", message);
 		}
 
 		private async Task SendRecentMessagesAsync(TcpClient client)
 		{
 			var stream = client.GetStream();
-
-			// Get the last 100 messages from Redis
 			var messages = await _db.ListRangeAsync("chatroom:messages", -100, -1);
 
 			foreach (var message in messages)
 			{
-				var buffer = Encoding.UTF8.GetBytes(message);
-				await stream.WriteAsync(buffer, 0, buffer.Length);
+				var messageBytes = Encoding.UTF8.GetBytes(message);
+				var lengthBytes = BitConverter.GetBytes(messageBytes.Length);
+				await stream.WriteAsync(lengthBytes, 0, lengthBytes.Length);
+				await stream.WriteAsync(messageBytes, 0, messageBytes.Length);
 			}
 		}
 
 		private async Task BroadcastMessageAsync(string message)
 		{
 			var messageBytes = Encoding.UTF8.GetBytes(message);
-			var lengthBytes = BitConverter.GetBytes(messageBytes.Length); // 獲取消息長度的字節表示
-			var fullMessage = new byte[lengthBytes.Length + messageBytes.Length];
-			lengthBytes.CopyTo(fullMessage, 0); // 將長度前綴複製到完整消息的開頭
-			messageBytes.CopyTo(fullMessage, lengthBytes.Length); // 將消息內容複製到長度後面
+			var lengthBytes = BitConverter.GetBytes(messageBytes.Length);
 
 			foreach (var client in _clients.Keys)
 			{
 				try
 				{
 					var stream = client.GetStream();
-					await stream.WriteAsync(fullMessage, 0, fullMessage.Length); // 發送包含長度前綴的完整消息
+					await stream.WriteAsync(lengthBytes, 0, lengthBytes.Length);
+					await stream.WriteAsync(messageBytes, 0, messageBytes.Length);
+					
 				}
 				catch
 				{

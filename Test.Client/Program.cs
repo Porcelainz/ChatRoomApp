@@ -9,7 +9,8 @@ namespace Test.Client
 	{
 		static async Task Main(string[] args)
 		{
-			var client = new ChatClient("127.0.0.1", 9000);
+			int port = Int32.Parse(args[0]);
+			var client = new ChatClient("127.0.0.1", port);
 			await client.StartAsync();
 		}
 	}
@@ -64,23 +65,27 @@ namespace Test.Client
 
 		private async Task ReceiveMessagesAsync()
 		{
+			const int BufferSize = 1024;
+			byte[] lengthBuffer = new byte[4];
+			byte[] messageBuffer = new byte[BufferSize];
 			try
 			{
 				while (true)
 				{
 					// 讀取消息長度
-					var lengthBuffer = new byte[4];
+					//var lengthBuffer = new byte[4];
 					int bytesRead = await _stream.ReadAsync(lengthBuffer, 0, lengthBuffer.Length);
 					if (bytesRead == 0) break; // 連接已關閉
 					var messageLength = BitConverter.ToInt32(lengthBuffer, 0);
-
+					Array.Clear(messageBuffer, 0, messageBuffer.Length);
 					// 根據消息長度讀取消息
-					var messageBuffer = new byte[messageLength];
+					//var messageBuffer = new byte[messageLength];
 					bytesRead = await _stream.ReadAsync(messageBuffer, 0, messageLength);
 					if (bytesRead == 0) break; // 連接已關閉
-					var message = Encoding.UTF8.GetString(messageBuffer);
+					var message = Encoding.UTF8.GetString(messageBuffer, 0, bytesRead);
 
 					Console.WriteLine(message);
+					
 				}
 			}
 			catch (Exception ex)
