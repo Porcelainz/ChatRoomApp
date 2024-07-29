@@ -25,7 +25,7 @@ namespace Test.Client
 		private async void button1_Click(object sender, EventArgs e)
 		{
 			string ipAddress = "127.0.0.1";
-			int port = 9001;//int.Parse(txtPort.Text);
+			int port = int.Parse(txtPort.Text);
 
 			_client = new ChatClient(ipAddress, port, this);
 			bool success = await _client.AuthenticateAsync(txtUsername.Text, txtPassword.Text);
@@ -71,6 +71,11 @@ namespace Test.Client
 		}
 
 		private void txtMessage_TextChanged(object sender, EventArgs e)
+		{
+
+		}
+
+		private void label4_Click(object sender, EventArgs e)
 		{
 
 		}

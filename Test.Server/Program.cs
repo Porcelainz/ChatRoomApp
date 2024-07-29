@@ -32,7 +32,7 @@ namespace Test.Server
 		const string PostgresConnectionString = "Host=localhost;Username=op;Password=Op@1234;Database=mydb";
 
 		private TcpListener _listener;
-		private ConcurrentDictionary<TcpClient, string> _clients;
+		private ConcurrentDictionary<string, TcpClient> _clients;
 		private Dictionary<string, string> _users;
 		private static ConnectionMultiplexer _redis;
 		private static IDatabase _db;
@@ -44,7 +44,7 @@ namespace Test.Server
 		public ChatServer(string ipAddress, int port)
 		{
 			_listener = new TcpListener(IPAddress.Parse(ipAddress), port);
-			_clients = new ConcurrentDictionary<TcpClient, string>();
+			_clients = new ConcurrentDictionary<string, TcpClient>();
 			_users = UserHelper.InitUser();
 			_redis = ConnectionMultiplexer.Connect(RedisConnectionString);
 			_db = _redis.GetDatabase();
@@ -69,11 +69,21 @@ namespace Test.Server
 
 			});
 
-			//await _usersSub.SubscribeAsync("chatroom:users", (channel, message) =>
-			//{
-			//	var userName = (string)message;
-			//	if()
-			//});
+			await _usersSub.SubscribeAsync("chatroom:users", (channel, message) =>
+			{
+				var userInfo = ((string)message).Split(':');
+				//Console.WriteLine(userName);
+				if (userInfo[1] != _port.ToString())
+				{
+					if (_clients.ContainsKey(userInfo[0]))
+					{
+						var client = _clients.TryGetValue(userInfo[0], out TcpClient tcpClient);
+						tcpClient.Close();
+						_clients.TryRemove(userInfo[0], out _);
+						Console.WriteLine($"{userInfo[0]} disconnected.");
+					}
+				}
+			});
 
 			while (true)
 			{
@@ -81,6 +91,7 @@ namespace Test.Server
 				Console.WriteLine("Client connected.");
 				var clientTask = HandleClientAsync(client);
 			}
+
 		}
 
 		private async Task HandleClientAsync(TcpClient client)
@@ -98,7 +109,7 @@ namespace Test.Server
 					client.Close();
 					return;
 				}
-				await _usersSub.PublishAsync("chatroom:users", username);
+				await _usersSub.PublishAsync("chatroom:users", $"{username}:{_port}");
 				await SendRecentMessagesAsync(client);
 				await BroadcastMessageAsync($"{username} joined the chat.");
 				while (true)
@@ -139,7 +150,7 @@ namespace Test.Server
 			}
 			finally
 			{
-				_clients.TryRemove(client, out _);
+				_clients.TryRemove(username, out _);
 				client.Close();
 				Console.WriteLine($"{username} disconnected.");
 			}
@@ -163,7 +174,7 @@ namespace Test.Server
 			// 驗證用戶名和密碼
 			if (_users.ContainsKey(username) && _users[username] == password)
 			{
-				_clients.TryAdd(client, username);
+				_clients.TryAdd(username, client);
 				var response = Encoding.UTF8.GetBytes("Login Success");
 				await stream.WriteAsync(response, 0, response.Length);
 				return username;
@@ -213,7 +224,7 @@ namespace Test.Server
 			var messageBytes = Encoding.UTF8.GetBytes(message);
 			var lengthBytes = BitConverter.GetBytes(messageBytes.Length);
 
-			foreach (var client in _clients.Keys)
+			foreach (var client in _clients.Values)
 			{
 				try
 				{

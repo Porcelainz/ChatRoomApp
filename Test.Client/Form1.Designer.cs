@@ -37,6 +37,8 @@
 			this.label3 = new System.Windows.Forms.Label();
 			this.listMessages = new System.Windows.Forms.ListBox();
 			this.btnSend_Click = new System.Windows.Forms.Button();
+			this.txtPort = new System.Windows.Forms.TextBox();
+			this.label4 = new System.Windows.Forms.Label();
 			this.SuspendLayout();
 			// 
 			// btnLogin_Click
@@ -120,11 +122,30 @@
 			this.btnSend_Click.UseVisualStyleBackColor = true;
 			this.btnSend_Click.Click += new System.EventHandler(this.btnSend_Click_Click);
 			// 
+			// txtPort
+			// 
+			this.txtPort.Location = new System.Drawing.Point(104, 47);
+			this.txtPort.Name = "txtPort";
+			this.txtPort.Size = new System.Drawing.Size(100, 22);
+			this.txtPort.TabIndex = 10;
+			// 
+			// label4
+			// 
+			this.label4.AutoSize = true;
+			this.label4.Location = new System.Drawing.Point(61, 50);
+			this.label4.Name = "label4";
+			this.label4.Size = new System.Drawing.Size(24, 12);
+			this.label4.TabIndex = 11;
+			this.label4.Text = "Port";
+			this.label4.Click += new System.EventHandler(this.label4_Click);
+			// 
 			// ChatForm
 			// 
 			this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 12F);
 			this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
 			this.ClientSize = new System.Drawing.Size(800, 450);
+			this.Controls.Add(this.label4);
+			this.Controls.Add(this.txtPort);
 			this.Controls.Add(this.btnSend_Click);
 			this.Controls.Add(this.listMessages);
 			this.Controls.Add(this.label3);
@@ -152,6 +173,8 @@
 		private System.Windows.Forms.Label label3;
 		private System.Windows.Forms.ListBox listMessages;
 		private System.Windows.Forms.Button btnSend_Click;
+		private System.Windows.Forms.TextBox txtPort;
+		private System.Windows.Forms.Label label4;
 	}
 }
 
