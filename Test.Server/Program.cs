@@ -2,10 +2,12 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading.Tasks;
+using Npgsql;
 using StackExchange.Redis;
 
 
@@ -26,23 +28,30 @@ namespace Test.Server
 
 	class ChatServer
 	{
+		const string RedisConnectionString = "localhost:6379,password=wtredis";
+		const string PostgresConnectionString = "Host=localhost;Username=op;Password=Op@1234;Database=mydb";
+
 		private TcpListener _listener;
 		private ConcurrentDictionary<TcpClient, string> _clients;
 		private Dictionary<string, string> _users;
 		private static ConnectionMultiplexer _redis;
 		private static IDatabase _db;
 		private ISubscriber _sub;
+		private ISubscriber _usersSub;
 		private int _port;
+		private NpgsqlDataSource _dataSource;
 
 		public ChatServer(string ipAddress, int port)
 		{
 			_listener = new TcpListener(IPAddress.Parse(ipAddress), port);
 			_clients = new ConcurrentDictionary<TcpClient, string>();
 			_users = UserHelper.InitUser();
-			_redis = ConnectionMultiplexer.Connect("localhost:6379,password=wtredis");
+			_redis = ConnectionMultiplexer.Connect(RedisConnectionString);
 			_db = _redis.GetDatabase();
 			_sub = _redis.GetSubscriber();
+			_usersSub = _redis.GetSubscriber();
 			_port = port;
+			_dataSource = NpgsqlDataSource.Create(PostgresConnectionString);
 
 		}
 
@@ -60,6 +69,11 @@ namespace Test.Server
 
 			});
 
+			//await _usersSub.SubscribeAsync("chatroom:users", (channel, message) =>
+			//{
+			//	var userName = (string)message;
+			//	if()
+			//});
 
 			while (true)
 			{
@@ -84,6 +98,7 @@ namespace Test.Server
 					client.Close();
 					return;
 				}
+				await _usersSub.PublishAsync("chatroom:users", username);
 				await SendRecentMessagesAsync(client);
 				await BroadcastMessageAsync($"{username} joined the chat.");
 				while (true)
@@ -111,8 +126,10 @@ namespace Test.Server
 						string formattedMessage = $"{username}: {message}";
 						Console.WriteLine(formattedMessage);
 						// 發布消息到 Redis
-						await StoreMessageAsync(formattedMessage);
 						await _sub.PublishAsync("chatroom:messages", formattedMessage);
+						await StoreMessageToRedisAsync(formattedMessage);
+						await StoreMessageToPostgresAsync(formattedMessage);
+						
 					}
 				}
 			}
@@ -158,7 +175,7 @@ namespace Test.Server
 				return null;
 			}
 		}
-		private async Task StoreMessageAsync(string message)
+		private async Task StoreMessageToRedisAsync(string message)
 		{
 			//var messageBytes = Encoding.UTF8.GetBytes(message);
 			//var lengthBytes = BitConverter.GetBytes(messageBytes.Length); // 注意這裡是messageBytes的長度
@@ -166,6 +183,15 @@ namespace Test.Server
 			//lengthBytes.CopyTo(fullMessage, 0);
 			//messageBytes.CopyTo(fullMessage, lengthBytes.Length);
 			await _db.ListRightPushAsync("chatroom:messages", message);
+		}
+
+		private async Task StoreMessageToPostgresAsync(string message)
+		{
+			using (var cmd = _dataSource.CreateCommand("INSERT INTO chatroom_message (message) VALUES ($1);"))
+			{
+				cmd.Parameters.AddWithValue(message);
+				await cmd.ExecuteNonQueryAsync();
+			}
 		}
 
 		private async Task SendRecentMessagesAsync(TcpClient client)
