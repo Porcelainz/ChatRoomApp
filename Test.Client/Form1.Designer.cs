@@ -108,7 +108,8 @@
 			this.listMessages.ItemHeight = 12;
 			this.listMessages.Location = new System.Drawing.Point(416, 81);
 			this.listMessages.Name = "listMessages";
-			this.listMessages.Size = new System.Drawing.Size(316, 148);
+			this.listMessages.SelectionMode = System.Windows.Forms.SelectionMode.MultiExtended;
+			this.listMessages.Size = new System.Drawing.Size(237, 148);
 			this.listMessages.TabIndex = 8;
 			this.listMessages.SelectedIndexChanged += new System.EventHandler(this.listBox1_SelectedIndexChanged);
 			// 

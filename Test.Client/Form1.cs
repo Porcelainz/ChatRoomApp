@@ -8,6 +8,7 @@ using System.Linq;
 using System.Net.Sockets;
 using System.Runtime.InteropServices.ComTypes;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Test.Common;
@@ -86,6 +87,8 @@ namespace Test.Client
 		private TcpClient _client;
 		private NetworkStream _stream;
 		private ChatForm _form;
+		private string _logFilePath;
+		private StreamWriter _logWriter;
 
 		public ChatClient(string ipAddress, int port, ChatForm form)
 		{
@@ -93,6 +96,25 @@ namespace Test.Client
 			_client.Connect(ipAddress, port);
 			_stream = _client.GetStream();
 			_form = form;
+			_logFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"chatLog_{new Random().Next(1,100)}.txt");
+			_logWriter = new StreamWriter(_logFilePath, true) { AutoFlush = true };
+		}
+		private void WriteLog(string message)
+		{
+			try
+			{
+				// 寫入log
+				_logWriter.WriteLine($"{DateTime.Now}: {message}");
+			}
+			catch (Exception ex)
+			{
+				_form.DisplayMessage($"Log Exception: {ex.Message}");
+			}
+		}
+		public void Dispose()
+		{
+			// 確保在物件被銷毀時關閉StreamWriter
+			_logWriter?.Dispose();
 		}
 
 		public async Task<bool> AuthenticateAsync(string username, string password)
@@ -142,7 +164,8 @@ namespace Test.Client
 
 						var messageBytes = memoryStream.ToArray();
 						var message = Encoding.UTF8.GetString(messageBytes);
-						_form.DisplayMessage(message);
+						//_form.DisplayMessage(message);
+						_logWriter.WriteLine(message);
 					}
 				}
 			}
@@ -155,13 +178,14 @@ namespace Test.Client
 		{
 			try
 			{
-				for (int i = 0; i < 100; i++)
+				for (int i = 0; i < 300; i++)
 				{
 					var messageBuffer = Encoding.UTF8.GetBytes(message + i.ToString());
 					var lengthBuffer = BitConverter.GetBytes(messageBuffer.Length);
 
 					await _stream.WriteAsync(lengthBuffer, 0, lengthBuffer.Length);
 					await _stream.WriteAsync(messageBuffer, 0, messageBuffer.Length);
+					
 				}
 			}
 			catch (Exception ex)

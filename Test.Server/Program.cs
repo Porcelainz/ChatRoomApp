@@ -60,12 +60,12 @@ namespace Test.Server
 			_listener.Start();
 			Console.WriteLine($"Server started on port {_port}.");
 
-			await _sub.SubscribeAsync("chatroom:messages", (channel, message) =>
+			await _sub.SubscribeAsync("chatroom:messages", async (channel, message) => 
 			{
-				
+
 				var msg = (string)message;
 				//Console.WriteLine("Received message: " + msg);
-				BroadcastMessageAsync(msg).Wait();
+				await BroadcastMessageAsync(msg);
 
 			});
 
@@ -111,7 +111,7 @@ namespace Test.Server
 				}
 				await _usersSub.PublishAsync("chatroom:users", $"{username}:{_port}");
 				await SendRecentMessagesAsync(client);
-				await BroadcastMessageAsync($"{username} joined the chat.");
+				//await BroadcastMessageAsync($"{username} joined the chat.");
 				while (true)
 				{
 					// 讀取消息長度
@@ -135,12 +135,12 @@ namespace Test.Server
 						var messageBytes = memoryStream.ToArray();
 						var message = Encoding.UTF8.GetString(messageBytes);
 						string formattedMessage = $"{username}: {message}";
-						Console.WriteLine(formattedMessage);
+						//Console.WriteLine(formattedMessage);
 						// 發布消息到 Redis
 						await _sub.PublishAsync("chatroom:messages", formattedMessage);
 						await StoreMessageToRedisAsync(formattedMessage);
 						await StoreMessageToPostgresAsync(formattedMessage);
-						
+
 					}
 				}
 			}
@@ -174,10 +174,18 @@ namespace Test.Server
 			// 驗證用戶名和密碼
 			if (_users.ContainsKey(username) && _users[username] == password)
 			{
-				_clients.TryAdd(username, client);
-				var response = Encoding.UTF8.GetBytes("Login Success");
-				await stream.WriteAsync(response, 0, response.Length);
-				return username;
+				if (!_clients.ContainsKey(username))
+				{
+					_clients.TryAdd(username, client);
+					var response = Encoding.UTF8.GetBytes("Login Success");
+					await stream.WriteAsync(response, 0, response.Length);
+					return username;
+				} else
+				{
+					var response = Encoding.UTF8.GetBytes("You already loged in");
+					await stream.WriteAsync(response, 0, response.Length);
+					return username;
+				}
 			}
 			else
 			{
@@ -231,7 +239,7 @@ namespace Test.Server
 					var stream = client.GetStream();
 					await stream.WriteAsync(lengthBytes, 0, lengthBytes.Length);
 					await stream.WriteAsync(messageBytes, 0, messageBytes.Length);
-					
+
 				}
 				catch
 				{
