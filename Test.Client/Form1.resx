@@ -117,4 +117,7 @@
   <resheader name="writer">
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
+  <data name="txtMessage.Text" xml:space="preserve">
+    <value>我們的成功不僅僅體現在業績的增長上，更在於我們每一位員工的成長和進步。For example, the new training programs and development initiatives we introduced have significantly enhanced our skills and capabilities. We have seen many of our team members take on new roles and responsibilities, demonstrating their growth and commitment. 我們的團隊合作和協作精神也是我們成功的關鍵。The way everyone supports each other, shares knowledge, and works together towards common goals is truly inspiring</value>
+  </data>
 </root>

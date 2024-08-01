@@ -5,9 +5,12 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
+using System.Runtime.Remoting.Messaging;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Npgsql;
+using RedLockNet.SERedis;
 using StackExchange.Redis;
 
 
@@ -19,10 +22,19 @@ namespace Test.Server
 		{
 			int port = Int32.Parse(args[0]);
 			var server = new ChatServer("127.0.0.1", port);
-			await server.StartAsync();
-			//int port2 = Int32.Parse(args[1]);
-			//var server2 = new ChatServer("127.0.0.1", 9001);
-			//await server2.StartAsync();
+
+			Task serverTask = server.StartAsync();
+			Task messageMiddlewareTask = Task.CompletedTask;
+
+			if (port == 9000)
+			{
+				// Start messageMiddleware
+				var messageMiddleware = new MessageMiddleware();
+				messageMiddlewareTask = messageMiddleware.StartAsync();
+			}
+
+			await Task.WhenAll(serverTask, messageMiddlewareTask);
+			Console.WriteLine("Server and MessageMiddleware started successfully.");
 		}
 	}
 
@@ -40,6 +52,9 @@ namespace Test.Server
 		private ISubscriber _usersSub;
 		private int _port;
 		private NpgsqlDataSource _dataSource;
+		private ConcurrentQueue<string> _messageQueue;
+		private SemaphoreSlim _messageSemaphore;
+
 
 		public ChatServer(string ipAddress, int port)
 		{
@@ -52,6 +67,8 @@ namespace Test.Server
 			_usersSub = _redis.GetSubscriber();
 			_port = port;
 			_dataSource = NpgsqlDataSource.Create(PostgresConnectionString);
+			_messageQueue = new ConcurrentQueue<string>();
+			_messageSemaphore = new SemaphoreSlim(0);
 
 		}
 
@@ -59,15 +76,18 @@ namespace Test.Server
 		{
 			_listener.Start();
 			Console.WriteLine($"Server started on port {_port}.");
+			//var messageProcessingTask = Task.Run(async () => await ProcessMessagesAsync());
 
-			await _sub.SubscribeAsync("chatroom:messages", async (channel, message) => 
-			{
+			//await _sub.SubscribeAsync("chatroom:messages_pubsub", async (channel, message) =>
+			//{
 
-				var msg = (string)message;
-				//Console.WriteLine("Received message: " + msg);
-				await BroadcastMessageAsync(msg);
+			//	var msg = (string)message;
+			//	await BroadcastMessageAsync(msg);
 
-			});
+			//});
+			_sub.Subscribe("chatroom:messages_pubsub")
+				.OnMessage(async message => await BroadcastMessageAsync((string)message.Message));
+
 
 			await _usersSub.SubscribeAsync("chatroom:users", (channel, message) =>
 			{
@@ -137,10 +157,15 @@ namespace Test.Server
 						string formattedMessage = $"{username}: {message}";
 						//Console.WriteLine(formattedMessage);
 						// 發布消息到 Redis
-						await _sub.PublishAsync("chatroom:messages", formattedMessage);
-						await StoreMessageToRedisAsync(formattedMessage);
-						await StoreMessageToPostgresAsync(formattedMessage);
+						//await _sub.PublishAsync("chatroom:messages_pubsub", formattedMessage);
+						await _db.ListRightPushAsync("chatroom:message_queue", formattedMessage);
+						//await _db.ListRightPushAsync("chatroom:message_Persistence", formattedMessage);
+						await _sub.PublishAsync("chatroom:message_queue_notification", formattedMessage);
+						//await StoreMessagesToRedisAsync(formattedMessage);
+						//await StoreMessageToPostgresAsync(formattedMessage);a
 
+						//_messageQueue.Enqueue(formattedMessage);
+						//_messageSemaphore.Release(); // 釋放Semaphore
 					}
 				}
 			}
@@ -155,8 +180,6 @@ namespace Test.Server
 				Console.WriteLine($"{username} disconnected.");
 			}
 		}
-
-
 
 		private async Task<string> AuthenticateClientAsync(TcpClient client)
 		{
@@ -180,7 +203,8 @@ namespace Test.Server
 					var response = Encoding.UTF8.GetBytes("Login Success");
 					await stream.WriteAsync(response, 0, response.Length);
 					return username;
-				} else
+				}
+				else
 				{
 					var response = Encoding.UTF8.GetBytes("You already loged in");
 					await stream.WriteAsync(response, 0, response.Length);
@@ -194,24 +218,9 @@ namespace Test.Server
 				return null;
 			}
 		}
-		private async Task StoreMessageToRedisAsync(string message)
-		{
-			//var messageBytes = Encoding.UTF8.GetBytes(message);
-			//var lengthBytes = BitConverter.GetBytes(messageBytes.Length); // 注意這裡是messageBytes的長度
-			//var fullMessage = new byte[lengthBytes.Length + messageBytes.Length];
-			//lengthBytes.CopyTo(fullMessage, 0);
-			//messageBytes.CopyTo(fullMessage, lengthBytes.Length);
-			await _db.ListRightPushAsync("chatroom:messages", message);
-		}
 
-		private async Task StoreMessageToPostgresAsync(string message)
-		{
-			using (var cmd = _dataSource.CreateCommand("INSERT INTO chatroom_message (message) VALUES ($1);"))
-			{
-				cmd.Parameters.AddWithValue(message);
-				await cmd.ExecuteNonQueryAsync();
-			}
-		}
+
+
 
 		private async Task SendRecentMessagesAsync(TcpClient client)
 		{
@@ -232,20 +241,27 @@ namespace Test.Server
 			var messageBytes = Encoding.UTF8.GetBytes(message);
 			var lengthBytes = BitConverter.GetBytes(messageBytes.Length);
 
+			var tasks = new List<Task>();
+
 			foreach (var client in _clients.Values)
 			{
-				try
+				tasks.Add(Task.Run(async () =>
 				{
-					var stream = client.GetStream();
-					await stream.WriteAsync(lengthBytes, 0, lengthBytes.Length);
-					await stream.WriteAsync(messageBytes, 0, messageBytes.Length);
-
-				}
-				catch
-				{
-					// 忽略寫入失敗（客戶端可能已斷開連接）
-				}
+					try
+					{
+						var stream = client.GetStream();
+						await stream.WriteAsync(lengthBytes, 0, lengthBytes.Length);
+						await stream.WriteAsync(messageBytes, 0, messageBytes.Length);
+					}
+					catch
+					{
+						// 忽略寫入失敗（客戶端可能已斷開連接）
+					}
+				}));
 			}
+
+			await Task.WhenAll(tasks);
 		}
+
 	}
 }

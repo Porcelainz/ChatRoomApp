@@ -28,6 +28,7 @@
 		/// </summary>
 		private void InitializeComponent()
 		{
+			System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(ChatForm));
 			this.btnLogin_Click = new System.Windows.Forms.Button();
 			this.txtUsername = new System.Windows.Forms.TextBox();
 			this.txtPassword = new System.Windows.Forms.TextBox();
@@ -57,6 +58,7 @@
 			this.txtUsername.Name = "txtUsername";
 			this.txtUsername.Size = new System.Drawing.Size(100, 22);
 			this.txtUsername.TabIndex = 1;
+			this.txtUsername.Text = "casey.yang";
 			this.txtUsername.TextChanged += new System.EventHandler(this.textBox1_TextChanged);
 			// 
 			// txtPassword
@@ -66,6 +68,7 @@
 			this.txtPassword.PasswordChar = '*';
 			this.txtPassword.Size = new System.Drawing.Size(100, 22);
 			this.txtPassword.TabIndex = 2;
+			this.txtPassword.Text = "Wan@1234";
 			// 
 			// label1
 			// 
@@ -91,6 +94,7 @@
 			this.txtMessage.Name = "txtMessage";
 			this.txtMessage.Size = new System.Drawing.Size(139, 22);
 			this.txtMessage.TabIndex = 5;
+			this.txtMessage.Text = resources.GetString("txtMessage.Text");
 			this.txtMessage.TextChanged += new System.EventHandler(this.txtMessage_TextChanged);
 			// 
 			// label3
@@ -129,6 +133,7 @@
 			this.txtPort.Name = "txtPort";
 			this.txtPort.Size = new System.Drawing.Size(100, 22);
 			this.txtPort.TabIndex = 10;
+			this.txtPort.Text = "9000";
 			// 
 			// label4
 			// 
