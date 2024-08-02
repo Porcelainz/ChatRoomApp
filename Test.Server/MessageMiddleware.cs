@@ -47,11 +47,12 @@ namespace Test.Server
 		{
 			List<string> messageBatch = new List<string>();
 			const int batchSize = 5000;
-			const int timeoutMilliseconds = 2000;
+			const int timeoutMilliseconds = 1000;
 			Stopwatch stopwatch = new Stopwatch();
 			_messageSemaphore.Wait();
 			int counter = 0;
 			stopwatch.Start();
+			AutoResetEvent waitHandle = new AutoResetEvent(false);
 			while (true)
 			{
 				try
@@ -97,15 +98,15 @@ namespace Test.Server
 						}
 
 						// 等待一小段時間再繼續
-						await Task.Delay(timeoutMilliseconds);
+						waitHandle.WaitOne(timeoutMilliseconds);
 					}
 				}
 				catch (Exception ex)
 				{
 					Console.WriteLine($"Error processing messages: {ex.Message}");
-					Console.WriteLine($"Stack trace: {ex.StackTrace}");
+					//Console.WriteLine($"Stack trace: {ex.StackTrace}");
 					// 添加一些延遲，以避免在錯誤情況下過度循環
-					await Task.Delay(timeoutMilliseconds);
+					waitHandle.WaitOne(timeoutMilliseconds);
 				}
 				if (counter == 10000)
 				{

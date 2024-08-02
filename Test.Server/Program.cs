@@ -1,17 +1,13 @@
-﻿using System;
+﻿using StackExchange.Redis;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
-using System.Runtime.Remoting.Messaging;
 using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
-using Npgsql;
-using RedLockNet.SERedis;
-using StackExchange.Redis;
 
 
 namespace Test.Server
@@ -20,21 +16,32 @@ namespace Test.Server
 	{
 		static async Task Main(string[] args)
 		{
-			int port = Int32.Parse(args[0]);
-			var server = new ChatServer("127.0.0.1", port);
+			//int port = Int32.Parse(args[0]);
+			//var server = new ChatServer("127.0.0.1", port);
 
-			Task serverTask = server.StartAsync();
-			Task messageMiddlewareTask = Task.CompletedTask;
+			//Task serverTask = server.StartAsync();
+			//Task messageMiddlewareTask = Task.CompletedTask;
 
-			if (port == 9000)
-			{
-				// Start messageMiddleware
-				var messageMiddleware = new MessageMiddleware();
-				messageMiddlewareTask = messageMiddleware.StartAsync();
-			}
+			//if (port == 9000)
+			//{
+			//	// Start messageMiddleware
+			//	var messageMiddleware = new MessageMiddleware();
+			//	messageMiddlewareTask = messageMiddleware.StartAsync();
+			//}
 
-			await Task.WhenAll(serverTask, messageMiddlewareTask);
-			Console.WriteLine("Server and MessageMiddleware started successfully.");
+			//await Task.WhenAll(serverTask, messageMiddlewareTask);
+			//Console.WriteLine("Server and MessageMiddleware started successfully.");
+			var server1 = new ChatServer("127.0.0.1", 9000);
+			var server2 = new ChatServer("127.0.0.1", 9001);
+
+			Task serverTask1 = server1.StartAsync();
+			Task serverTask2 = server2.StartAsync();
+
+			// 只在 9000 端口的伺服器上啟動 MessageMiddleware
+			var messageMiddleware = new MessageMiddleware();
+			Task messageMiddlewareTask = messageMiddleware.StartAsync();
+
+			await Task.WhenAll(serverTask1, serverTask2, messageMiddlewareTask);
 		}
 	}
 
@@ -42,7 +49,7 @@ namespace Test.Server
 	{
 		const string RedisConnectionString = "localhost:6379,password=wtredis";
 		const string PostgresConnectionString = "Host=localhost;Username=op;Password=Op@1234;Database=mydb";
-
+		
 		private TcpListener _listener;
 		private ConcurrentDictionary<string, TcpClient> _clients;
 		private Dictionary<string, string> _users;
@@ -51,9 +58,9 @@ namespace Test.Server
 		private ISubscriber _sub;
 		private ISubscriber _usersSub;
 		private int _port;
-		private NpgsqlDataSource _dataSource;
-		private ConcurrentQueue<string> _messageQueue;
-		private SemaphoreSlim _messageSemaphore;
+		//private NpgsqlDataSource _dataSource;
+		//private ConcurrentQueue<string> _messageQueue;
+		//private SemaphoreSlim _messageSemaphore;
 
 
 		public ChatServer(string ipAddress, int port)
@@ -66,9 +73,9 @@ namespace Test.Server
 			_sub = _redis.GetSubscriber();
 			_usersSub = _redis.GetSubscriber();
 			_port = port;
-			_dataSource = NpgsqlDataSource.Create(PostgresConnectionString);
-			_messageQueue = new ConcurrentQueue<string>();
-			_messageSemaphore = new SemaphoreSlim(0);
+			//_dataSource = NpgsqlDataSource.Create(PostgresConnectionString);
+			//_messageQueue = new ConcurrentQueue<string>();
+			//_messageSemaphore = new SemaphoreSlim(0);
 
 		}
 
@@ -108,7 +115,7 @@ namespace Test.Server
 			while (true)
 			{
 				var client = await _listener.AcceptTcpClientAsync();
-				Console.WriteLine("Client connected.");
+				//Console.WriteLine("Client connected.");
 				var clientTask = HandleClientAsync(client);
 			}
 
@@ -188,7 +195,7 @@ namespace Test.Server
 
 			// 接收用戶名
 			var bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length);
-			var username = Encoding.UTF8.GetString(buffer, 0, bytesRead).Trim();
+			var username = Encoding.UTF8.GetString(buffer, 0, bytesRead);
 
 			// 接收密碼
 			bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length);
@@ -219,9 +226,6 @@ namespace Test.Server
 			}
 		}
 
-
-
-
 		private async Task SendRecentMessagesAsync(TcpClient client)
 		{
 			var stream = client.GetStream();
@@ -241,24 +245,19 @@ namespace Test.Server
 			var messageBytes = Encoding.UTF8.GetBytes(message);
 			var lengthBytes = BitConverter.GetBytes(messageBytes.Length);
 
-			var tasks = new List<Task>();
-
-			foreach (var client in _clients.Values)
+			var tasks = _clients.Values.Select(async client =>
 			{
-				tasks.Add(Task.Run(async () =>
+				try
 				{
-					try
-					{
-						var stream = client.GetStream();
-						await stream.WriteAsync(lengthBytes, 0, lengthBytes.Length);
-						await stream.WriteAsync(messageBytes, 0, messageBytes.Length);
-					}
-					catch
-					{
-						// 忽略寫入失敗（客戶端可能已斷開連接）
-					}
-				}));
-			}
+					var stream = client.GetStream();
+					await stream.WriteAsync(lengthBytes, 0, lengthBytes.Length);
+					await stream.WriteAsync(messageBytes, 0, messageBytes.Length);
+				}
+				catch
+				{
+					// 忽略寫入失敗（客戶端可能已斷開連接）
+				}
+			});
 
 			await Task.WhenAll(tasks);
 		}
