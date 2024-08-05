@@ -47,8 +47,7 @@ namespace Test.Server
 
 	class ChatServer
 	{
-		const string RedisConnectionString = "localhost:6379,password=wtredis";
-		const string PostgresConnectionString = "Host=localhost;Username=op;Password=Op@1234;Database=mydb";
+		private const string RedisConnectionString = "localhost:6379,password=wtredis";
 		
 		private TcpListener _listener;
 		private ConcurrentDictionary<string, TcpClient> _clients;
@@ -56,6 +55,7 @@ namespace Test.Server
 		private static ConnectionMultiplexer _redis;
 		private static IDatabase _db;
 		private ISubscriber _sub;
+		private ChannelMessageQueue _channel;
 		private ISubscriber _usersSub;
 		private int _port;
 		//private NpgsqlDataSource _dataSource;
@@ -71,6 +71,7 @@ namespace Test.Server
 			_redis = ConnectionMultiplexer.Connect(RedisConnectionString);
 			_db = _redis.GetDatabase();
 			_sub = _redis.GetSubscriber();
+			_channel = _sub.Subscribe("chatroom:messages_pubSub");
 			_usersSub = _redis.GetSubscriber();
 			_port = port;
 			//_dataSource = NpgsqlDataSource.Create(PostgresConnectionString);
@@ -81,19 +82,27 @@ namespace Test.Server
 
 		public async Task StartAsync()
 		{
+			var counter = 0;
+			var messageBatch = new List<string>();
 			_listener.Start();
 			Console.WriteLine($"Server started on port {_port}.");
 			//var messageProcessingTask = Task.Run(async () => await ProcessMessagesAsync());
 
-			//await _sub.SubscribeAsync("chatroom:messages_pubsub", async (channel, message) =>
-			//{
-
-			//	var msg = (string)message;
-			//	await BroadcastMessageAsync(msg);
-
-			//});
-			_sub.Subscribe("chatroom:messages_pubsub")
-				.OnMessage(async message => await BroadcastMessageAsync((string)message.Message));
+			
+			_channel.OnMessage(async message =>
+				{
+					messageBatch.Add(message.Message);
+					//counter++;
+					if (messageBatch.Count >= 10000)
+					{
+						Console.WriteLine("Message start to send!!!");
+						var toSend = String.Join("\n", messageBatch);
+						await BroadcastMessageAsync(toSend);
+						counter = 0;
+						messageBatch.Clear();
+					}
+					//await BroadcastMessageAsync(message.Message);
+				});
 
 
 			await _usersSub.SubscribeAsync("chatroom:users", (channel, message) =>
@@ -162,17 +171,9 @@ namespace Test.Server
 						var messageBytes = memoryStream.ToArray();
 						var message = Encoding.UTF8.GetString(messageBytes);
 						string formattedMessage = $"{username}: {message}";
-						//Console.WriteLine(formattedMessage);
-						// 發布消息到 Redis
-						//await _sub.PublishAsync("chatroom:messages_pubsub", formattedMessage);
-						await _db.ListRightPushAsync("chatroom:message_queue", formattedMessage);
-						//await _db.ListRightPushAsync("chatroom:message_Persistence", formattedMessage);
-						await _sub.PublishAsync("chatroom:message_queue_notification", formattedMessage);
-						//await StoreMessagesToRedisAsync(formattedMessage);
-						//await StoreMessageToPostgresAsync(formattedMessage);a
-
-						//_messageQueue.Enqueue(formattedMessage);
-						//_messageSemaphore.Release(); // 釋放Semaphore
+						
+						await _sub.PublishAsync("chatroom:messages_pubSub", formattedMessage);
+						
 					}
 				}
 			}
@@ -242,8 +243,11 @@ namespace Test.Server
 
 		private async Task BroadcastMessageAsync(string message)
 		{
+			
 			var messageBytes = Encoding.UTF8.GetBytes(message);
+			
 			var lengthBytes = BitConverter.GetBytes(messageBytes.Length);
+			Console.WriteLine("message Length: " + messageBytes.Length);
 
 			var tasks = _clients.Values.Select(async client =>
 			{

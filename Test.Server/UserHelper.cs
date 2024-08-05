@@ -14,11 +14,11 @@ namespace Test.Server
 			for (int i = 1; i < 101; i++)
 			{
 				string account = $"casey.yang{i}";
-				string password = "Wan@1234";
+				string password = "ZWNzdGFzeV9BB+8tcKK482t6kLR3ra+Ltyic7w==";
 
 				// Hash the password
-				string hashedPassword = Cryptography.HashPassword(password);
-				users.Add(account, hashedPassword);
+				//string hashedPassword = Cryptography.HashPassword(password);
+				users.Add(account, password);
 
 			}
 			return users;

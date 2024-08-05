@@ -21,10 +21,10 @@ namespace Test.Client
 	{
 		//private ChatClient _client;
 		private List<ChatClient> _clients = new List<ChatClient>();
-		private Random _random = new Random();
+		private readonly Random _random = new Random();
 		private const int ClientCount = 100;
 		private const int MessageCount = 100;
-		const string messageToSend = "我們的成功不僅僅體現在業績的增長上，更在於我們每一位員工的成長和進步。For example, the new training programs and development initiatives we introduced have significantly enhanced our skills and capabilities. We have seen many of our team members take on new roles and responsibilities, demonstrating their growth and commitment. 我們的團隊合作和協作精神也是我們成功的關鍵。The way everyone supports each other, shares knowledge, and works together towards common goals is truly inspiring.";
+		private const string MessageToSend = "我們的成功不僅僅體現在業績的增長上，更在於我們每一位員工的成長和進步。For example, the new training programs and development initiatives we introduced have significantly enhanced our skills and capabilities. We have seen many of our team members take on new roles and responsibilities, demonstrating their growth and commitment. 我們的團隊合作和協作精神也是我們成功的關鍵。The way everyone supports each other, shares knowledge, and works together towards common goals is truly inspiring.";
 		public ChatForm()
 		{
 			InitializeComponent();
@@ -97,8 +97,7 @@ namespace Test.Client
 			{
 				int port = _random.Next(2) == 0 ? 9000 : 9001;
 				string username = $"casey.yang{i}";
-				bool shouldLog = i % 20 == 0; 
-				var client = new ChatClient("127.0.0.1", port, this, username, shouldLog);
+				var client = new ChatClient("127.0.0.1", port, this, username);
 				_clients.Add(client);
 
 				tasks.Add(LoginClientAsync(client, i));
@@ -131,7 +130,7 @@ namespace Test.Client
 			for (int i = 0; i < MessageCount; i++)
 			{
 				//string message = $"來自 {client.GetHashCode()} 的第 {i + 1} 條訊息";
-				await client.SendMessageAsync(i + messageToSend);
+				await client.SendMessageAsync(i + MessageToSend);
 				//await Task.Delay(10); // 小延遲以防止壓垮伺服器
 			}
 		}
@@ -158,7 +157,13 @@ namespace Test.Client
 				DisplayMessage($"用戶 {username} 登入過程中發生錯誤: {ex.Message}");
 			}
 		}
-
+		private void StopAllClients()
+		{
+			foreach (var client in _clients)
+			{
+				client.Dispose();
+			}
+		}
 
 	}
 	public class ChatClient
@@ -173,29 +178,24 @@ namespace Test.Client
 		private CancellationTokenSource _cancellationTokenSource;
 		private SemaphoreSlim _messageSemaphore;
 		private string _username;
-		private bool _shouldLog;
 		private Stopwatch _receiveTimer = new Stopwatch();
 		private int _messageCount = 0;
 		private const int TARGET_MESSAGE_COUNT = 10000;
 
-		public ChatClient(string ipAddress, int port, ChatForm form, string username, bool shouldLog)
+		public ChatClient(string ipAddress, int port, ChatForm form, string username)
 		{
 			_client = new TcpClient();
 			_client.Connect(ipAddress, port);
 			_stream = _client.GetStream();
 			_form = form;
 			_username = username;
-			//_logFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"chatLog_{username}.txt");
-			//_logWriter = new StreamWriter(_logFilePath, true) { AutoFlush = true };
 			_messageQueue = new ConcurrentQueue<string>();
 			_cancellationTokenSource = new CancellationTokenSource();
 			_messageSemaphore = new SemaphoreSlim(0);
-			_shouldLog = shouldLog;
-			if (_shouldLog)
-			{
-				_logFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"chatLog_{username}.txt");
-				_logWriter = new StreamWriter(_logFilePath, true) { AutoFlush = true };
-			}
+
+			
+			_logFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"chatLog_{username}.txt");
+			_logWriter = new StreamWriter(_logFilePath, true) { AutoFlush = true };
 		}
 		public async void Start()
 		{
@@ -216,18 +216,7 @@ namespace Test.Client
 				_form.DisplayMessage($"Log Exception: {ex.Message}");
 			}
 		}
-		private async Task WriteLogAsync(string message)
-		{
-			try
-			{
-				// 異步寫入日誌
-				await _logWriter.WriteLineAsync(message);
-			}
-			catch (Exception ex)
-			{
-				_form.DisplayMessage($"Log Exception: {ex.Message}");
-			}
-		}
+		
 		public void Dispose()
 		{
 			// 確保在物件被銷毀時關閉StreamWriter
@@ -240,7 +229,7 @@ namespace Test.Client
 			var usernameBytes = Encoding.UTF8.GetBytes(_username);
 			await _stream.WriteAsync(usernameBytes, 0, usernameBytes.Length);
 
-			var passwordBytes = Encoding.UTF8.GetBytes(Cryptography.HashPassword(password));
+			var passwordBytes = Encoding.UTF8.GetBytes("ZWNzdGFzeV9BB+8tcKK482t6kLR3ra+Ltyic7w==");//Encoding.UTF8.GetBytes(Cryptography.HashPassword(password));
 			await _stream.WriteAsync(passwordBytes, 0, passwordBytes.Length);
 
 			var buffer = new byte[1024];
@@ -250,21 +239,19 @@ namespace Test.Client
 			return response == "Login Success";
 		}
 
-		//public async void Start()
-		//{
-		//	await Task.Run(() => ReceiveMessagesAsync());
-		//}
+		
 
 		private async Task ReceiveMessagesAsync()
 		{
 			//if(!_shouldLog) return;
 			const int BufferSize = 1024;
-			byte[] lengthBuffer = new byte[4];
+			
 			byte[] messageBuffer = new byte[BufferSize];
 			
 			
 			try
 			{
+				_receiveTimer.Start();
 				while (true)
 				{
 					
@@ -286,27 +273,21 @@ namespace Test.Client
 
 						var messageBytes = memoryStream.ToArray();
 						var message = Encoding.UTF8.GetString(messageBytes);
-						//_messageQueue.Enqueue(message);
+						_messageQueue.Enqueue(message);
 						
 						//_messageSemaphore.Release();
-						//_form.DisplayMessage(message);
-						//await WriteLogAsync(message);
-						if (_shouldLog && _messageCount == 0)
+						
+						_messageCount++;
+						if (_messageCount >= 1)
 						{
-							_receiveTimer.Start();
-						}
-						if (_shouldLog)
-						{
-							_messageCount++;
-							_messageQueue.Enqueue(message);
-							
 							_messageSemaphore.Release();
 						}
 
-						if (_messageCount == TARGET_MESSAGE_COUNT)
+						if (_messageCount == 1)
 						{
 							_receiveTimer.Stop();
-							_form.DisplayMessage($"{_username}received{TARGET_MESSAGE_COUNT}message {_receiveTimer.ElapsedMilliseconds} 毫秒。");
+							_form.DisplayMessage($"{_username} received {TARGET_MESSAGE_COUNT} messages in {_receiveTimer.ElapsedMilliseconds} milliseconds.");
+							break;
 						}
 
 					}
@@ -320,25 +301,31 @@ namespace Test.Client
 		}
 		private async Task ProcessMessagesAsync(CancellationToken cancellationToken)
 		{
-			if (!_shouldLog) return;
-			const int BatchSize = 10000;
-			var messageBatch = new List<string>(BatchSize);
+			const int batchSize = 1;
+			
 			
 			while (!cancellationToken.IsCancellationRequested)
 			{
 				await _messageSemaphore.WaitAsync(cancellationToken);
-				if (_messageQueue.TryDequeue(out var message))
+				if (_messageQueue.Count >= 1)
 				{
-					messageBatch.Add(message);
-					if (messageBatch.Count >= BatchSize)
-					{
-						await WriteLogBatchAsync(messageBatch);
-						messageBatch.Clear();
-					}
+					var messageBatch = _messageQueue.ToList();
+					await WriteLogBatchAsync(messageBatch);
+					_messageQueue = null;
+					messageBatch.Clear();
 				}
+				//if (_messageQueue.TryDequeue(out var message))
+				//{
+				//	messageBatch.Add(message);
+				//	if (messageBatch.Count >= batchSize)
+				//	{
+				//		await WriteLogBatchAsync(messageBatch);
+				//		messageBatch.Clear();
+						
+				//	}
+				//}
 			}
 
-			// Write remaining messages in case the loop exits before reaching the batch size
 			//if (messageBatch.Count > 0)
 			//{
 			//	await WriteLogBatchAsync(messageBatch);
