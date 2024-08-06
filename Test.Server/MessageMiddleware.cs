@@ -37,15 +37,13 @@ namespace Test.Server
 		public async Task StartAsync()
 		{
 			Console.WriteLine("MessageMiddleware started");
-
-
 			await ProcessMessagesAsync();
 		}
 		private async Task ProcessMessagesAsync()
 		{
 			List<string> messageBatch = new List<string>();
-			const int batchSize = 5000;
 			AutoResetEvent waitHandle = new AutoResetEvent(false);
+
 			_sub.Subscribe("chatroom:messages_pubSub")
 				.OnMessage(async message =>
 				{
@@ -56,7 +54,6 @@ namespace Test.Server
 						await ProcessMessageBatchAsync(messageBatch);
 					}
 				});
-
 		}
 
 		private async Task ProcessMessageBatchAsync(List<string> messages)
@@ -71,7 +68,6 @@ namespace Test.Server
 		{
 			try
 			{
-				//Console.WriteLine($"Starting store to Postgresql !!!!!!!!!!!!!!");
 				using (var conn = await _dataSource.OpenConnectionAsync())
 				using (var transaction = conn.BeginTransaction())
 				{
@@ -107,7 +103,6 @@ namespace Test.Server
 			try
 			{
 				var batch = _db.CreateBatch();
-
 				var tasks = new List<Task>();
 
 				foreach (var message in messages)
