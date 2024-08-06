@@ -12,7 +12,7 @@ using StackExchange.Redis;
 
 namespace Test.Server
 {
-	internal class MessageMiddleware
+	internal class MessageProcessor
 	{
 		const string RedisConnectionString = "localhost:6379,password=wtredis";
 		const string PostgresConnectionString = "Host=localhost;Username=op;Password=Op@1234;Database=mydb";
@@ -23,7 +23,7 @@ namespace Test.Server
 		private NpgsqlDataSource _dataSource;
 		private SemaphoreSlim _messageSemaphore;
 		private ConcurrentQueue<string> _messageQueue;
-		public MessageMiddleware()
+		public MessageProcessor()
 		{
 			_redis = ConnectionMultiplexer.Connect(RedisConnectionString);
 			_db = _redis.GetDatabase();
@@ -36,7 +36,7 @@ namespace Test.Server
 
 		public async Task StartAsync()
 		{
-			Console.WriteLine("MessageMiddleware started");
+			Console.WriteLine("MessageProcessor started");
 			await ProcessMessagesAsync();
 		}
 		private async Task ProcessMessagesAsync()

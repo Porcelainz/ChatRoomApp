@@ -23,8 +23,8 @@ namespace Test.Server
 			Task serverTask1 = server1.StartAsync();
 			Task serverTask2 = server2.StartAsync();
 
-			// 只在 9000 端口的伺服器上啟動 MessageMiddleware
-			var messageMiddleware = new MessageMiddleware();
+			// 只在 9000 端口的伺服器上啟動 MessageProcessor
+			var messageMiddleware = new MessageProcessor();
 			Task messageMiddlewareTask = messageMiddleware.StartAsync();
 
 			await Task.WhenAll(serverTask1, serverTask2, messageMiddlewareTask);
@@ -89,7 +89,7 @@ namespace Test.Server
 			_channel.OnMessage(async message =>
 				{
 					messageBatch.Add(message.Message);
-					
+
 					if (messageBatch.Count >= 10000)
 					{
 						Console.WriteLine("Message start to send!!!");
@@ -165,7 +165,7 @@ namespace Test.Server
 						var messageBytes = memoryStream.ToArray();
 						var message = Encoding.UTF8.GetString(messageBytes);
 						string formattedMessage = $"{username}: {message}";
-						
+
 						await _sub.PublishAsync("chatroom:messages_pubSub", formattedMessage);
 					}
 				}
@@ -191,28 +191,27 @@ namespace Test.Server
 			var username = credentials[0];
 			var password = credentials[1];
 
+			byte[] response;
 			if (_users.ContainsKey(username) && _users[username] == password)
 			{
 				if (!_clients.ContainsKey(username))
 				{
 					_clients.TryAdd(username, client);
-					var response = BitConverter.GetBytes(1);
+					response = BitConverter.GetBytes(1);
 					await stream.WriteAsync(response, 0, response.Length);
 					return username;
 				}
 				else
 				{
-					var response = BitConverter.GetBytes(2);
+					response = BitConverter.GetBytes(2);
 					await stream.WriteAsync(response, 0, response.Length);
 					return username;
 				}
 			}
-			else
-			{
-				var response = BitConverter.GetBytes(0);
-				await stream.WriteAsync(response, 0, response.Length);
-				return null;
-			}
+			response = BitConverter.GetBytes(0);
+			await stream.WriteAsync(response, 0, response.Length);
+			return null;
+
 		}
 		private async Task SendRecentMessagesAsync(TcpClient client)
 		{
@@ -222,7 +221,7 @@ namespace Test.Server
 			var a = messages.Select(x => (string)x).ToList();
 			var toSend = String.Join("\n", a);
 			await BroadcastMessageAsync(toSend);
-			
+
 		}
 		private async Task BroadcastMessageAsync(string message)
 		{
