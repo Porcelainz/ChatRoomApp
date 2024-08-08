@@ -22,14 +22,13 @@ namespace Test.Server
 		private ISubscriber _sub;
 		private NpgsqlDataSource _dataSource;
 		private SemaphoreSlim _messageSemaphore;
-		private ConcurrentQueue<string> _messageQueue;
+		
 		public MessageProcessor()
 		{
 			_redis = ConnectionMultiplexer.Connect(RedisConnectionString);
 			_db = _redis.GetDatabase();
 			_sub = _redis.GetSubscriber();
 			_dataSource = NpgsqlDataSource.Create(PostgresConnectionString);
-			_messageQueue = new ConcurrentQueue<string>();
 			_messageSemaphore = new SemaphoreSlim(0);
 		}
 

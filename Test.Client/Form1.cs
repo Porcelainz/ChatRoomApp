@@ -178,7 +178,7 @@ namespace Test.Client
 		private SemaphoreSlim _messageSemaphore;
 		private string _username;
 		private Stopwatch _receiveTimer = new Stopwatch();
-		private int _messageCount = 0;
+		private int _messageCount ;
 		private const int TARGET_MESSAGE_COUNT = 10000;
 
 		public ChatClient(string ipAddress, int port, ChatForm form, string username)
@@ -218,6 +218,7 @@ namespace Test.Client
 			{
 				_form.DisplayMessage($"Log Exception: {ex.Message}");
 			}
+
 		}
 
 		public void Dispose()
