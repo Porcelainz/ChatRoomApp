@@ -299,12 +299,14 @@ namespace Test.Client
 						}
 						if (_messageCount == 1)
 						{
-							_receiveTimer.Stop();
-							_form.DisplayMessage($"{_username} received {TARGET_MESSAGE_COUNT} messages in {_receiveTimer.ElapsedMilliseconds} milliseconds.");
+							
+							//_form.DisplayMessage($"{_username} received {TARGET_MESSAGE_COUNT} messages in {_receiveTimer.ElapsedMilliseconds} milliseconds.");
 							break;
 						}
 					}
 				}
+				_receiveTimer.Stop();
+				_form.DisplayMessage($"{_username} received {TARGET_MESSAGE_COUNT} messages in {_receiveTimer.ElapsedMilliseconds} milliseconds.");
 			}
 			catch (Exception ex)
 			{

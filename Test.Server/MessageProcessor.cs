@@ -60,7 +60,12 @@ namespace Test.Server
 		{
 			if (messages.Count > 0)
 			{
+				
+				Stopwatch stopwatch = new Stopwatch();
+				stopwatch.Start();
 				await StoreMessagesToPostgresAsync(messages);
+				stopwatch.Stop();
+				Console.WriteLine($"Time to store {messages.Count} messages to Postgres: {stopwatch.ElapsedMilliseconds} ms");
 				await StoreMessagesToRedisAsync(messages);
 			}
 		}
@@ -71,25 +76,16 @@ namespace Test.Server
 				using (var conn = await _dataSource.OpenConnectionAsync())
 				using (var transaction = conn.BeginTransaction())
 				{
-					var valueStrings = new List<string>();
-					var parameters = new List<NpgsqlParameter>();
-
-					for (int i = 0; i < messages.Count; i++)
+					using (var writer = conn.BeginTextImport("COPY chatroom_message (message) FROM STDIN"))
 					{
-						valueStrings.Add($"(@message{i})");
-						parameters.Add(new NpgsqlParameter($"@message{i}", messages[i]));
-					}
-
-					var cmdText = $"INSERT INTO chatroom_message (message) VALUES {string.Join(",", valueStrings)}";
-
-					using (var cmd = new NpgsqlCommand(cmdText, conn, transaction))
-					{
-						cmd.Parameters.AddRange(parameters.ToArray());
-						await cmd.ExecuteNonQueryAsync();
+						foreach (var message in messages)
+						{
+							await writer.WriteLineAsync(message);
+						}
 					}
 
 					await transaction.CommitAsync();
-					Console.WriteLine($"Stored {messages.Count} messages to Postgres");
+					Console.WriteLine($"Stored {messages.Count} messages to Postgres using bulk insert");
 				}
 			}
 			catch (Exception ex)

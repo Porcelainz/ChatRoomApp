@@ -91,10 +91,10 @@
 			// 
 			this.listMessages.FormattingEnabled = true;
 			this.listMessages.ItemHeight = 12;
-			this.listMessages.Location = new System.Drawing.Point(428, 21);
+			this.listMessages.Location = new System.Drawing.Point(277, 21);
 			this.listMessages.Name = "listMessages";
 			this.listMessages.SelectionMode = System.Windows.Forms.SelectionMode.MultiExtended;
-			this.listMessages.Size = new System.Drawing.Size(360, 148);
+			this.listMessages.Size = new System.Drawing.Size(355, 124);
 			this.listMessages.TabIndex = 8;
 			this.listMessages.SelectedIndexChanged += new System.EventHandler(this.listBox1_SelectedIndexChanged);
 			// 
@@ -132,7 +132,7 @@
 			// 
 			this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 12F);
 			this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-			this.ClientSize = new System.Drawing.Size(800, 450);
+			this.ClientSize = new System.Drawing.Size(648, 272);
 			this.Controls.Add(this.button2);
 			this.Controls.Add(this.button1);
 			this.Controls.Add(this.SendMessageButton_Click);
