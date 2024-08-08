@@ -52,7 +52,7 @@ namespace Test.Server.ChatServer
 		private byte[] PrepareMessageForSendToClient(string message)
 		{
 			var messageBytes = Encoding.UTF8.GetBytes(message);
-			return PrefixAdder.AddLengthPrefix(messageBytes);
+			return LengthPrefixAdder.AddLengthPrefix(messageBytes);
 		}
 	}
 }

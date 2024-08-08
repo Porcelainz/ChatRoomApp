@@ -15,7 +15,7 @@ namespace Test.Client.ChatClient
 			try
 			{
 				var messageBytes = Encoding.UTF8.GetBytes(message);
-				var messageForSen = PrefixAdder.AddLengthPrefix(messageBytes);
+				var messageForSen = LengthPrefixAdder.AddLengthPrefix(messageBytes);
 				await _stream.WriteAsync(messageForSen, 0, messageForSen.Length);
 			}
 			catch (Exception ex)

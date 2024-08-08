@@ -4,7 +4,7 @@ using System.Text;
 
 namespace Test.Common
 {
-	public class PrefixAdder
+	public class LengthPrefixAdder
 	{
 		public static byte[] AddLengthPrefix(byte[] messageBytes)
 		{
