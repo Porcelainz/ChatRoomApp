@@ -63,51 +63,41 @@ namespace Test.Client
 
 			return response == "Login Success";
 		}
+		private async Task<string> ReadMessageAsync(Stream stream, byte[] buffer)
+		{
+			int bytesRead = await stream.ReadAsync(buffer, 0, 4);
+			if (bytesRead == 0) return null;
 
+			var messageLength = BitConverter.ToInt32(buffer, 0);
+			using (var memoryStream = new MemoryStream())
+			{
+				int remainingBytes = messageLength;
+				while (remainingBytes > 0)
+				{
+					int bytesToRead = Math.Min(remainingBytes, buffer.Length);
+					bytesRead = await stream.ReadAsync(buffer, 0, bytesToRead);
+					if (bytesRead == 0) break;
+					await memoryStream.WriteAsync(buffer, 0, bytesRead);
+					remainingBytes -= bytesRead;
+				}
+
+				var messageBytes = memoryStream.ToArray();
+				var message = Encoding.UTF8.GetString(messageBytes);
+				return message;
+			}
+		}
 		private async Task ReceiveMessagesAsync()
 		{
 			const int BufferSize = 1024;
-			byte[] lengthBuffer = new byte[4];
 			byte[] messageBuffer = new byte[BufferSize];
 			try
 			{
 				while (true)
 				{
-					//// 讀取消息長度
-					////var lengthBuffer = new byte[4];
-					//int bytesRead = await _stream.ReadAsync(lengthBuffer, 0, lengthBuffer.Length);
-					//if (bytesRead == 0) break; // 連接已關閉
-					//var messageLength = BitConverter.ToInt32(lengthBuffer, 0);
-					//Array.Clear(messageBuffer, 0, messageBuffer.Length);
-					//// 根據消息長度讀取消息
-					////var messageBuffer = new byte[messageLength];
-					//bytesRead = await _stream.ReadAsync(messageBuffer, 0, messageLength);
-					//if (bytesRead == 0) break; // 連接已關閉
-					//var message = Encoding.UTF8.GetString(messageBuffer, 0, bytesRead);
-					int bytesRead = await _stream.ReadAsync(messageBuffer, 0, 4);
-					if (bytesRead == 0) break;
-					var messageLength = BitConverter.ToInt32(messageBuffer, 0);
+					var message = await ReadMessageAsync(_stream, messageBuffer);
+					if (message == null) break;
 
-					// 使用 MemoryStream 來構建完整消息
-					using (var memoryStream = new MemoryStream())
-					{
-						int remainingBytes = messageLength;
-						while (remainingBytes > 0)
-						{
-							int bytesToRead = Math.Min(remainingBytes, messageBuffer.Length);
-							bytesRead = await _stream.ReadAsync(messageBuffer, 0, bytesToRead);
-							if (bytesRead == 0) break;
-							await memoryStream.WriteAsync(messageBuffer, 0, bytesRead);
-							remainingBytes -= bytesRead;
-						}
-
-						var messageBytes = memoryStream.ToArray();
-						var message = Encoding.UTF8.GetString(messageBytes);
-
-
-						Console.WriteLine(message);
-
-					}
+					Console.WriteLine(message);
 				}
 			}
 			catch (Exception ex)

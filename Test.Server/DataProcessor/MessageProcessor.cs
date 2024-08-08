@@ -31,8 +31,6 @@ namespace Test.Server
 			_dataSource = NpgsqlDataSource.Create(PostgresConnectionString);
 			_messageSemaphore = new SemaphoreSlim(0);
 		}
-
-
 		public async Task StartAsync()
 		{
 			Console.WriteLine("MessageProcessor started");
@@ -40,21 +38,24 @@ namespace Test.Server
 		}
 		private async Task ProcessMessagesAsync()
 		{
-			List<string> messageBatch = new List<string>();
+			List<string> batchMessage = new List<string>();
 			AutoResetEvent waitHandle = new AutoResetEvent(false);
 
 			_sub.Subscribe("chatroom:messages_pubSub")
 				.OnMessage(async message =>
 				{
-					messageBatch.Add(message.Message);
-					_messageSemaphore.Release();
-					if (messageBatch.Count >= 10000)
-					{
-						await ProcessMessageBatchAsync(messageBatch);
-					}
+					await OnMessageReceivedAsync(message.Message, batchMessage);
 				});
 		}
-
+		private async Task OnMessageReceivedAsync(string message, List<string> messages)
+		{
+			messages.Add(message);
+			_messageSemaphore.Release();
+			if (messages.Count >= 10000)
+			{
+				await ProcessMessageBatchAsync(messages);
+			}
+		}
 		private async Task ProcessMessageBatchAsync(List<string> messages)
 		{
 			if (messages.Count > 0)
@@ -62,64 +63,12 @@ namespace Test.Server
 				
 				Stopwatch stopwatch = new Stopwatch();
 				stopwatch.Start();
-				await StoreMessagesToPostgresAsync(messages);
+				await PostGreSqlHelper.StoreMessagesToPostgresAsync(messages, _dataSource);
 				stopwatch.Stop();
 				Console.WriteLine($"Time to store {messages.Count} messages to Postgres: {stopwatch.ElapsedMilliseconds} ms");
-				await StoreMessagesToRedisAsync(messages);
+				await RedisHelper.StoreMessagesToRedisAsync(messages, _db);
 			}
 		}
-		private async Task StoreMessagesToPostgresAsync(List<string> messages)
-		{
-			try
-			{
-				using (var conn = await _dataSource.OpenConnectionAsync())
-				using (var transaction = conn.BeginTransaction())
-				{
-					using (var writer = conn.BeginTextImport("COPY chatroom_message (message) FROM STDIN"))
-					{
-						foreach (var message in messages)
-						{
-							await writer.WriteLineAsync(message);
-						}
-					}
-
-					await transaction.CommitAsync();
-					Console.WriteLine($"Stored {messages.Count} messages to Postgres using bulk insert");
-				}
-			}
-			catch (Exception ex)
-			{
-				Console.WriteLine($"Error storing messages to Postgres: {ex.Message}");
-				throw;
-			}
-		}
-		private async Task StoreMessagesToRedisAsync(List<string> messages)
-		{
-			try
-			{
-				var batch = _db.CreateBatch();
-				var tasks = new List<Task>();
-
-				foreach (var message in messages)
-				{
-					tasks.Add(batch.ListRightPushAsync("chatroom:messages", message));
-					//tasks.Add(batch.PublishAsync("chatroom:messages_pubsub", message));
-				}
-
-				batch.Execute();
-				await Task.WhenAll(tasks);
-
-				Console.WriteLine($"Stored {messages.Count} messages to Redis");
-			}
-			catch (Exception ex)
-			{
-				Console.WriteLine($"Error storing messages to Redis: {ex.Message}");
-				throw;
-			}
-		}
-
-
-
 	}
 
 }

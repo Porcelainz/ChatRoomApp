@@ -13,6 +13,8 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using Npgsql;
+using StackExchange.Redis;
 using Test.Common;
 using static System.Windows.Forms.VisualStyles.VisualStyleElement.StartPanel;
 
@@ -21,7 +23,7 @@ namespace Test.Client
 	public partial class ChatForm : Form
 	{
 		//private ChatClient _client;
-		private List<ChatClient> _clients = new List<ChatClient>();
+		private List<ChatClient.Client> _clients = new List<ChatClient.Client>();
 		private readonly Random _random = new Random();
 		private const int ClientCount = 100;
 		private const int MessageCount = 100;
@@ -38,7 +40,7 @@ namespace Test.Client
 			{
 				int port = _random.Next(2) == 0 ? 9000 : 9001;
 
-				var client = new ChatClient("127.0.0.1", port, this, username + i);
+				var client = new ChatClient.Client("127.0.0.1", port, this, username + i);
 				_clients.Add(client);
 
 				var tcs = new TaskCompletionSource<bool>();
@@ -110,14 +112,14 @@ namespace Test.Client
 			timer.Stop();
 			DisplayMessage($"所有訊息已發送，共耗時 {timer.ElapsedMilliseconds} 毫秒。");
 		}
-		private async Task SendClientMessagesAsync(ChatClient client)
+		private async Task SendClientMessagesAsync(ChatClient.Client client)
 		{
 			for (int i = 0; i < MessageCount; i++)
 			{
 				await client.SendMessageAsync(i + MessageToSend);
 			}
 		}
-		private async Task LoginClientAsync(ChatClient client, int userNumber)
+		private async Task LoginClientAsync(ChatClient.Client client, int userNumber)
 		{
 			string username = $"casey.yang{userNumber}";
 			string password = "Wan@1234"; // 你可能想要為每個用戶設置不同的密碼
@@ -144,7 +146,7 @@ namespace Test.Client
 		}
 		private async void button1_Click_1(object sender, EventArgs e)
 		{
-			
+
 			await SendMessagesAsync();
 		}
 		private void label2_Click(object sender, EventArgs e)
@@ -154,200 +156,99 @@ namespace Test.Client
 		{
 			var userName = txtUsername.Text;
 			var password = txtPassword.Text;
-			var client = new ChatClient("127.0.0.1", 9000, this, userName);
+			var client = new ChatClient.Client("127.0.0.1", 9000, this, userName);
 			await LoginClientAsync(client, 101);
 		}
 		private async void button2_Click(object sender, EventArgs e)
 		{
 			var userName = txtUsername.Text;
 			var password = txtPassword.Text;
-			var client = new ChatClient("127.0.0.1", 9001, this, userName);
+			var client = new ChatClient.Client("127.0.0.1", 9001, this, userName);
 			await LoginClientAsync(client, 101);
 		}
-	}
-	public class ChatClient
 
-	{
-		private TcpClient _client;
-		private NetworkStream _stream;
-		private ChatForm _form;
-		private string _logFilePath;
-		private StreamWriter _logWriter;
-		private ConcurrentQueue<string> _messageQueue;
-		private CancellationTokenSource _cancellationTokenSource;
-		private SemaphoreSlim _messageSemaphore;
-		private string _username;
-		private Stopwatch _receiveTimer = new Stopwatch();
-		private int _messageCount ;
-		private const int TARGET_MESSAGE_COUNT = 10000;
-
-		public ChatClient(string ipAddress, int port, ChatForm form, string username)
+		private async void ExportDataFromPG_Click(object sender, EventArgs e)
 		{
-			_client = new TcpClient();
-			_client.Connect(ipAddress, port);
-			_stream = _client.GetStream();
-			_form = form;
-			_username = username;
-			_messageQueue = new ConcurrentQueue<string>();
-			_cancellationTokenSource = new CancellationTokenSource();
-			_messageSemaphore = new SemaphoreSlim(0);
-			_logFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"chatLog_{username}.txt");
+			// 連接字符串應根據你的 PostgreSQL 配置進行修改
+			string connectionString = "Host=localhost;Username=op;Password=Op@1234;Database=mydb";
 
-			if (_username.Contains("test"))
-			{
-				_logFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory,
-					$"chatLog_{username}{new Random().Next(100)}.txt");
-			}
+			// SQL 查詢語句
+			string query = @"
+			SELECT message
+				FROM (
+				SELECT t.*
+				FROM public.chatroom_message t
+				ORDER BY t.created_at DESC
+				LIMIT 10000
+			) AS subquery
+			ORDER BY subquery.id ASC;";
 
-			_logWriter = new StreamWriter(_logFilePath, true) { AutoFlush = true };
-		}
-		public async void Start()
-		{
-			var receiveTask = ReceiveMessagesAsync();
-			var processTask = ProcessMessagesAsync(_cancellationTokenSource.Token);
-			await Task.WhenAll(receiveTask, processTask);
-		}
-		private async Task WriteLogBatchAsync(List<string> messages)
-		{
-			try
-			{
-				var batchContent = string.Join(Environment.NewLine, messages);
-				await _logWriter.WriteAsync(batchContent + Environment.NewLine);
-			}
-			catch (Exception ex)
-			{
-				_form.DisplayMessage($"Log Exception: {ex.Message}");
-			}
-
-		}
-
-		public void Dispose()
-		{
-			_logWriter?.Dispose();
-			_cancellationTokenSource.Cancel();
-		}
-
-		public async Task<bool> AuthenticateAsync(string password)
-		{
-			try
-			{
-				
-				string credentials = $"{_username}:{Cryptography.HashPassword(password)}";
-				byte[] credentialsBytes = Encoding.UTF8.GetBytes(credentials);
-
-				await _stream.WriteAsync(credentialsBytes, 0, credentialsBytes.Length).ConfigureAwait(false);
-
-				byte[] buffer = new byte[1024];
-				int bytesRead = await _stream.ReadAsync(buffer, 0, buffer.Length).ConfigureAwait(false);
-				int response = BitConverter.ToInt32(buffer, 0);
-
-				if (response == 1)
-				{
-					return true;
-				}
-				if (response == 2)
-				{
-					Console.WriteLine("You are already logged in on another device.");
-					return true;
-				}
-				return false;
-				
-			}
-			catch (Exception ex)
-			{
-				Console.WriteLine($"Authentication error: {ex.Message}");
-				return false;
-			}
-		}
-
-
-
-		private async Task ReceiveMessagesAsync()
-		{
-			const int BufferSize = 1024;
-			byte[] messageBuffer = new byte[BufferSize];
+			// 匯出的 TXT 文件路徑
+			string filePath = "exported_data.txt";
 
 			try
 			{
-				_receiveTimer.Start();
-				while (true)
+				using (var connection = new NpgsqlConnection(connectionString))
 				{
+					await connection.OpenAsync();
 
-					int bytesRead = await _stream.ReadAsync(messageBuffer, 0, 4);
-					if (bytesRead == 0) break;
-					var messageLength = BitConverter.ToInt32(messageBuffer, 0);
-
-					using (var memoryStream = new MemoryStream())
+					using (var command = new NpgsqlCommand(query, connection))
+					using (var reader = await command.ExecuteReaderAsync())
+					using (var writer = new StreamWriter(filePath))
 					{
-						int remainingBytes = messageLength;
-						while (remainingBytes > 0)
+						while (await reader.ReadAsync())
 						{
-							int bytesToRead = Math.Min(remainingBytes, messageBuffer.Length);
-							bytesRead = await _stream.ReadAsync(messageBuffer, 0, bytesToRead);
-							if (bytesRead == 0) break;
-							await memoryStream.WriteAsync(messageBuffer, 0, bytesRead);
-							remainingBytes -= bytesRead;
-						}
-
-						var messageBytes = memoryStream.ToArray();
-						var message = Encoding.UTF8.GetString(messageBytes);
-						_messageQueue.Enqueue(message);
-						_messageCount++;
-
-						if (_messageCount >= 1)
-						{
-							_messageSemaphore.Release();
-						}
-						if (_messageCount == 1)
-						{
-							
-							//_form.DisplayMessage($"{_username} received {TARGET_MESSAGE_COUNT} messages in {_receiveTimer.ElapsedMilliseconds} milliseconds.");
-							break;
+							string message = reader.GetString(0);
+							await writer.WriteLineAsync(message);
 						}
 					}
 				}
-				_receiveTimer.Stop();
-				_form.DisplayMessage($"{_username} received {TARGET_MESSAGE_COUNT} messages in {_receiveTimer.ElapsedMilliseconds} milliseconds.");
+
+				MessageBox.Show("Data exported successfully.");
 			}
 			catch (Exception ex)
 			{
-				_form.DisplayMessage($"Exception: {ex.Message}");
+				MessageBox.Show($"An error occurred: {ex.Message}");
 			}
 		}
-		private async Task ProcessMessagesAsync(CancellationToken cancellationToken)
+
+		private async void ExportDataFromRedis_Click(object sender, EventArgs e)
 		{
-			while (!cancellationToken.IsCancellationRequested)
-			{
-				await _messageSemaphore.WaitAsync(cancellationToken);
-				if (_messageQueue.Count >= 1)
-				{
-					var messageBatch = _messageQueue.ToList();
-					await WriteLogBatchAsync(messageBatch);
-					_messageQueue = null;
-					messageBatch.Clear();
-				}
-			}
-		}
-		
-		public async Task SendMessageAsync(string message)
-		{
+			string connectionString = "localhost:6379,password=wtredis";
+			string redisKey = "chatroom:messages";
+			int start = -10000; 
+			int end = -1; 
+			string filePath = "redis_exported_data.txt";
+
 			try
 			{
-				var messageBytes = Encoding.UTF8.GetBytes(message);
-				var lengthBytes = BitConverter.GetBytes(messageBytes.Length);
-				byte[] messageForSend = new byte[lengthBytes.Length + messageBytes.Length];
-				Buffer.BlockCopy(lengthBytes, 0, messageForSend, 0, lengthBytes.Length);
-				Buffer.BlockCopy(messageBytes, 0, messageForSend, lengthBytes.Length, messageBytes.Length);
-				await _stream.WriteAsync(messageForSend, 0, messageForSend.Length);
-				//await _stream.WriteAsync(lengthBuffer, 0, lengthBuffer.Length);
-				//await _stream.WriteAsync(messageBuffer, 0, messageBuffer.Length);
+				var redis = ConnectionMultiplexer.Connect(connectionString);
+				var db = redis.GetDatabase();
+				var redisValues = await db.ListRangeAsync(redisKey, start, end);
+
+				if (redisValues.Length == 0)
+				{
+					MessageBox.Show("No data found in Redis.");
+					return;
+				}
+
+				using (var writer = new StreamWriter(filePath))
+				{
+					foreach (var value in redisValues)
+					{
+						await writer.WriteLineAsync(value);
+					}
+				}
+
+				MessageBox.Show("Data exported successfully.");
 			}
 			catch (Exception ex)
 			{
-				_form.DisplayMessage("異常：" + ex.Message);
+				MessageBox.Show($"An error occurred: {ex.Message}");
 			}
 		}
 	}
+
 }
 
 

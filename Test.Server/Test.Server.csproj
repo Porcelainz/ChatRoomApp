@@ -123,8 +123,14 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="MessageProcessor.cs" />
-    <Compile Include="UserHelper.cs" />
+    <Compile Include="ChatServer\Server.cs" />
+    <Compile Include="ChatServer\ServerAuthenticator.cs" />
+    <Compile Include="ChatServer\ServerMessageReceiver.cs" />
+    <Compile Include="ChatServer\ServeMessageFn.cs" />
+    <Compile Include="DataProcessor\MessageProcessor.cs" />
+    <Compile Include="DBHelper\PostgreSQLHelper.cs" />
+    <Compile Include="DBHelper\RedisHelper.cs" />
+    <Compile Include="DBHelper\UserHelper.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
@@ -138,5 +144,6 @@
       <Name>Test.Common</Name>
     </ProjectReference>
   </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

@@ -37,6 +37,8 @@
 			this.SendMessageButton_Click = new System.Windows.Forms.Button();
 			this.button1 = new System.Windows.Forms.Button();
 			this.button2 = new System.Windows.Forms.Button();
+			this.ExportDataFromPG = new System.Windows.Forms.Button();
+			this.ExportDataFromRedis = new System.Windows.Forms.Button();
 			this.SuspendLayout();
 			// 
 			// btnLogin_Click
@@ -128,11 +130,33 @@
 			this.button2.UseVisualStyleBackColor = true;
 			this.button2.Click += new System.EventHandler(this.button2_Click);
 			// 
+			// ExportDataFromPG
+			// 
+			this.ExportDataFromPG.Location = new System.Drawing.Point(374, 186);
+			this.ExportDataFromPG.Name = "ExportDataFromPG";
+			this.ExportDataFromPG.Size = new System.Drawing.Size(119, 23);
+			this.ExportDataFromPG.TabIndex = 15;
+			this.ExportDataFromPG.Text = "匯出PostGreSql資料";
+			this.ExportDataFromPG.UseVisualStyleBackColor = true;
+			this.ExportDataFromPG.Click += new System.EventHandler(this.ExportDataFromPG_Click);
+			// 
+			// ExportDataFromRedis
+			// 
+			this.ExportDataFromRedis.Location = new System.Drawing.Point(513, 186);
+			this.ExportDataFromRedis.Name = "ExportDataFromRedis";
+			this.ExportDataFromRedis.Size = new System.Drawing.Size(94, 23);
+			this.ExportDataFromRedis.TabIndex = 16;
+			this.ExportDataFromRedis.Text = "匯出Redis資料";
+			this.ExportDataFromRedis.UseVisualStyleBackColor = true;
+			this.ExportDataFromRedis.Click += new System.EventHandler(this.ExportDataFromRedis_Click);
+			// 
 			// ChatForm
 			// 
 			this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 12F);
 			this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
 			this.ClientSize = new System.Drawing.Size(648, 272);
+			this.Controls.Add(this.ExportDataFromRedis);
+			this.Controls.Add(this.ExportDataFromPG);
 			this.Controls.Add(this.button2);
 			this.Controls.Add(this.button1);
 			this.Controls.Add(this.SendMessageButton_Click);
@@ -160,6 +184,8 @@
 		private System.Windows.Forms.Button SendMessageButton_Click;
 		private System.Windows.Forms.Button button1;
 		private System.Windows.Forms.Button button2;
+		private System.Windows.Forms.Button ExportDataFromPG;
+		private System.Windows.Forms.Button ExportDataFromRedis;
 	}
 }
 
