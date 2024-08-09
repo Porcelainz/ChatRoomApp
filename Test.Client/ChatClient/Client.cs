@@ -27,6 +27,8 @@ namespace Test.Client.ChatClient
 		private Stopwatch _receiveTimer = new Stopwatch();
 		private int _messageCount;
 		private const int TARGET_MESSAGE_COUNT = 10000;
+		private string _Client_log_folderPath;
+		
 
 		public Client(string ipAddress, int port, ChatForm form, string username)
 		{
@@ -38,11 +40,14 @@ namespace Test.Client.ChatClient
 			_messageQueue = new ConcurrentQueue<string>();
 			_cancellationTokenSource = new CancellationTokenSource();
 			_messageSemaphore = new SemaphoreSlim(0);
-			_logFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"chatLog_{username}.txt");
+			_Client_log_folderPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Client_log");
+			_logFilePath = Path.Combine(_Client_log_folderPath, $"chatLog_{username}.txt");
 
 			if (_username.Contains("test"))
 			{
-				_logFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory,
+				string _concurrent_log_file_path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "concurrent_log");
+				Directory.CreateDirectory(_concurrent_log_file_path);
+				_logFilePath = Path.Combine(_concurrent_log_file_path,
 					$"chatLog_{username}{new Random().Next(100)}.txt");
 			}
 
@@ -52,6 +57,8 @@ namespace Test.Client.ChatClient
 		{
 			var receiveTask = ReceiveMessagesAsync();
 			var processTask = ProcessMessagesAsync(_cancellationTokenSource.Token);
+			
+			
 			await Task.WhenAll(receiveTask, processTask);
 		}
 		

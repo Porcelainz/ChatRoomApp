@@ -43,6 +43,7 @@ namespace Test.Client.ChatClient
 			{
 				var batchContent = string.Join(Environment.NewLine, messages);
 				await _logWriter.WriteAsync(batchContent + Environment.NewLine);
+				_logWriter.Close();
 			}
 			catch (Exception ex)
 			{

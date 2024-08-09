@@ -9,6 +9,7 @@ using System.IO;
 using System.Linq;
 using System.Net.Sockets;
 using System.Runtime.InteropServices.ComTypes;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -30,12 +31,16 @@ namespace Test.Client
 		private const string MessageToSend = "我們的成功不僅僅體現在業績的增長上，更在於我們每一位員工的成長和進步。For example, the new training programs and development initiatives we introduced have significantly enhanced our skills and capabilities. We have seen many of our team members take on new roles and responsibilities, demonstrating their growth and commitment. 我們的團隊合作和協作精神也是我們成功的關鍵。The way everyone supports each other, shares knowledge, and works together towards common goals is truly inspiring.";
 		List<Task> tasks = new List<Task>();
 		List<TaskCompletionSource<bool>> taskSources = new List<TaskCompletionSource<bool>>();
+		string _Client_log_folderPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Client_log");
+		string _DB_data_folderPatyh = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "DB_Data");
 
 		public ChatForm()
 		{
 			InitializeComponent();
 			string username = "casey.yang";
-
+			
+			Directory.CreateDirectory(_Client_log_folderPath);
+			Directory.CreateDirectory(_DB_data_folderPatyh);
 			for (int i = 1; i <= ClientCount; i++)
 			{
 				int port = _random.Next(2) == 0 ? 9000 : 9001;
@@ -184,7 +189,8 @@ namespace Test.Client
 			ORDER BY subquery.id ASC;";
 
 			// 匯出的 TXT 文件路徑
-			string filePath = "exported_data.txt";
+			//Directory.CreateDirectory(DB_data_floderPath);
+			string filePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "DB_Data", "PG_Exported_data.txt");
 
 			try
 			{
@@ -218,7 +224,7 @@ namespace Test.Client
 			string redisKey = "chatroom:messages";
 			int start = -10000; 
 			int end = -1; 
-			string filePath = "redis_exported_data.txt";
+			string filePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "DB_Data", "Redis_exported_data.txt");
 
 			try
 			{
@@ -246,6 +252,58 @@ namespace Test.Client
 			{
 				MessageBox.Show($"An error occurred: {ex.Message}");
 			}
+		}
+
+		private void button3_Click(object sender, EventArgs e)
+		{
+			string filePath1 = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "DB_Data", "PG_Exported_data.txt");
+			string filePath2 = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "DB_Data", "Redis_exported_data.txt");
+
+			// 檢查文件是否相等
+			bool areEqual = AreFilesEqual(filePath1, filePath2);
+
+			// 顯示比較結果
+			if (areEqual)
+			{
+				MessageBox.Show("Redis 和 PG 資料順序相等");
+			}
+			else
+			{
+				MessageBox.Show("Redis 和 PG 資料順序不相等");
+			}
+		}
+		private bool AreFilesEqual(string filePath1, string filePath2)
+		{
+			string hash1 = ComputeFileHash(filePath1);
+			string hash2 = ComputeFileHash(filePath2);
+
+			return hash1 == hash2;
+		}
+		private string ComputeFileHash(string filePath)
+		{
+			using (var hashAlgorithm = SHA256.Create()) // 使用 SHA256 哈希算法
+			using (var fileStream = File.OpenRead(filePath))
+			{
+				byte[] hashBytes = hashAlgorithm.ComputeHash(fileStream);
+				return BitConverter.ToString(hashBytes).Replace("-", "").ToLowerInvariant();
+			}
+		}
+
+		private void CompareWithClient_Click_Click(object sender, EventArgs e)
+		{
+			string filePath1 = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "DB_Data", "PG_Exported_data.txt");
+			string filePath2 = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Client_log", $"chatLog_casey.yang{new Random().Next(100)}.txt");
+
+			bool areEqual = AreFilesEqual(filePath1, filePath2);
+			if (areEqual)
+			{
+				MessageBox.Show("使用者log 和 PG資料順序相等");
+			}
+			else
+			{
+				MessageBox.Show("使用者log 和 PG資料順序不相等");
+			}
+
 		}
 	}
 

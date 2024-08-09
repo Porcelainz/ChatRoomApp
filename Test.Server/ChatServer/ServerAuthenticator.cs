@@ -26,6 +26,7 @@ namespace Test.Server.ChatServer
 					_clients.TryAdd(username, client);
 					response = BitConverter.GetBytes(1);
 					await stream.WriteAsync(response, 0, response.Length);
+					Console.WriteLine($"{username} has logged in successfully");
 					return username;
 				}
 				else
