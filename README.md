@@ -47,4 +47,6 @@ CREATE TABLE chatroom_message (
 #### 4. Receive Time of All Messages from All Users: The time when all messages are received from all users will be displayed in the WinForms app window.
 ### 5. CPU usuage: ![alt text](image-2.png)
 
+# Sequence diagra
+![alt text](Sequencediagram.png)
     
