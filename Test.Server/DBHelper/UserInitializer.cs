@@ -11,7 +11,7 @@ namespace Test.Server.DBHelper
 {
 	internal class UserInitializer
 	{
-		private static readonly byte[] FixedSalt = Encoding.UTF8.GetBytes("ecstasy_");
+		private static readonly byte[] _fixedSalt = Encoding.UTF8.GetBytes("ecstasy_");
 
 		public void Init_user()
 		{
@@ -28,10 +28,8 @@ namespace Test.Server.DBHelper
 					string account = $"casey.yang{i}";
 					string password = "Wan@1234";
 
-					// Hash the password
 					string hashedPassword = HashPassword(password);
 
-					// Check if the user exists, if not, insert the user into the database
 					if (!UserExists(account, hashedPassword))
 					{
 						InsertUser(account, hashedPassword);
@@ -62,9 +60,9 @@ namespace Test.Server.DBHelper
 			using (var sha256 = SHA256.Create())
 			{
 				// Combine the password and fixed salt
-				byte[] combinedBytes = new byte[FixedSalt.Length + Encoding.UTF8.GetBytes(password).Length];
-				Array.Copy(FixedSalt, 0, combinedBytes, 0, FixedSalt.Length);
-				Array.Copy(Encoding.UTF8.GetBytes(password), 0, combinedBytes, FixedSalt.Length, Encoding.UTF8.GetBytes(password).Length);
+				byte[] combinedBytes = new byte[_fixedSalt.Length + Encoding.UTF8.GetBytes(password).Length];
+				Array.Copy(_fixedSalt, 0, combinedBytes, 0, _fixedSalt.Length);
+				Array.Copy(Encoding.UTF8.GetBytes(password), 0, combinedBytes, _fixedSalt.Length, Encoding.UTF8.GetBytes(password).Length);
 
 				// Compute the hash
 				byte[] hashBytes = sha256.ComputeHash(combinedBytes);
