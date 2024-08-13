@@ -43,9 +43,9 @@
 			// 
 			// btnLogin_Click
 			// 
-			this.btnLogin_Click.Location = new System.Drawing.Point(37, 21);
+			this.btnLogin_Click.Location = new System.Drawing.Point(14, 21);
 			this.btnLogin_Click.Name = "btnLogin_Click";
-			this.btnLogin_Click.Size = new System.Drawing.Size(110, 23);
+			this.btnLogin_Click.Size = new System.Drawing.Size(153, 23);
 			this.btnLogin_Click.TabIndex = 0;
 			this.btnLogin_Click.Text = "登入100個使用者";
 			this.btnLogin_Click.UseVisualStyleBackColor = true;
@@ -104,9 +104,9 @@
 			// 
 			// SendMessageButton_Click
 			// 
-			this.SendMessageButton_Click.Location = new System.Drawing.Point(37, 50);
+			this.SendMessageButton_Click.Location = new System.Drawing.Point(12, 50);
 			this.SendMessageButton_Click.Name = "SendMessageButton_Click";
-			this.SendMessageButton_Click.Size = new System.Drawing.Size(110, 23);
+			this.SendMessageButton_Click.Size = new System.Drawing.Size(155, 23);
 			this.SendMessageButton_Click.TabIndex = 12;
 			this.SendMessageButton_Click.Text = "發送100筆訊息每個使用者";
 			this.SendMessageButton_Click.UseVisualStyleBackColor = true;

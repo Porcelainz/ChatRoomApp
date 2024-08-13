@@ -10,6 +10,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Npgsql;
 using Test.Common;
+using Test.Server.DBHelper;
 
 
 namespace Test.Server
@@ -18,6 +19,9 @@ namespace Test.Server
 	{
 		static async Task Main(string[] args)
 		{
+			var userInitializer = new UserInitializer();
+			userInitializer.Init_user();
+
 			var server1 = new ChatServer.Server("127.0.0.1", 9000);
 			var server2 = new ChatServer.Server("127.0.0.1", 9001);
 

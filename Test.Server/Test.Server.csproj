@@ -131,6 +131,7 @@
     <Compile Include="DBHelper\PostgreSQLHelper.cs" />
     <Compile Include="DBHelper\RedisHelper.cs" />
     <Compile Include="DBHelper\UserHelper.cs" />
+    <Compile Include="DBHelper\UserInitializer.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
