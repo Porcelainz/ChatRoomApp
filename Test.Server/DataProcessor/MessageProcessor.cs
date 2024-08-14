@@ -1,14 +1,10 @@
-﻿using System;
-using System.Collections.Concurrent;
+﻿using Npgsql;
+using StackExchange.Redis;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
-using System.Runtime.Remoting.Messaging;
 using System.Threading;
 using System.Threading.Tasks;
-using Npgsql;
-using StackExchange.Redis;
-
 
 namespace Test.Server
 {
@@ -34,9 +30,9 @@ namespace Test.Server
 		public async Task StartAsync()
 		{
 			Console.WriteLine("MessageProcessor started");
-			await ProcessMessagesAsync();
+			ProcessMessagesAsync();
 		}
-		private async Task ProcessMessagesAsync()
+		private void ProcessMessagesAsync()
 		{
 			List<string> batchMessage = new List<string>();
 			AutoResetEvent waitHandle = new AutoResetEvent(false);

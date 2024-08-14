@@ -1,6 +1,5 @@
-﻿using System.Text;
+﻿using System;
 using System.Threading.Tasks;
-using System;
 using Test.Common;
 
 namespace Test.Client.ChatClient

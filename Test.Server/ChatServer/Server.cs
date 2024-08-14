@@ -38,7 +38,7 @@ namespace Test.Server.ChatServer
 
 		public async Task StartAsync()
 		{
-			var counter = 0;
+			
 			var messageBatch = new List<string>();
 			_listener.Start();
 			Console.WriteLine($"Server started on port {_port}.");
@@ -52,7 +52,6 @@ namespace Test.Server.ChatServer
 					Console.WriteLine("Message start to send!!!");
 					var toSend = String.Join("\n", messageBatch);
 					await BroadcastMessageAsync(toSend);
-					counter = 0;
 					messageBatch.Clear();
 				}
 			});
