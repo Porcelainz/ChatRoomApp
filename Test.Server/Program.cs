@@ -15,6 +15,7 @@ using Test.Server.DBHelper;
 
 namespace Test.Server
 {
+	
 	internal class Program
 	{
 		static async Task Main(string[] args)
